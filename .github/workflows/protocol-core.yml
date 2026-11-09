@@ -1,4 +1,4 @@
-name: Protocol Core CI
+name: Vanguard CI
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Kotlin protocol-core tests
+  build-and-test:
+    name: Protocol tests and Android library build
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -28,5 +28,8 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
-      - name: Run protocol-core tests
-        run: gradle test
+      - name: Run protocol tests
+        run: gradle :protocol-core:test
+
+      - name: Build Android runtime
+        run: gradle :android-runtime:assembleDebug
