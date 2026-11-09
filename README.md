@@ -41,6 +41,6 @@ Android Keystore-backed signing, a production Android key provider, Android appl
 
 A valid signature proves control of a private key, not a student's civil identity or campus membership. Offline revocation knowledge is necessarily stale; the application must expose the age of its last trusted revocation snapshot. Offline marketplace scores must be labelled provisional until server validation.
 
-The JVM key implementation is for protocol development and tests. The Android storage module does not yet provide production key custody. Do not use this prototype for payments, emergency services, or high-value authorization.
+The JVM key implementation is for protocol development and tests. The Android storage module does not yet provide production key custody. The Room database is not yet protected with application-level database encryption; treat local event payloads as sensitive and do not use real private messages or identity records in this prototype. Android app sandboxing and device encryption are not a substitute for a reviewed at-rest encryption design. Do not use this prototype for payments, emergency services, or high-value authorization.
 
 See [protocol/PROTOCOL.md](protocol/PROTOCOL.md) for the wire contract and [protocol/ROADMAP.md](protocol/ROADMAP.md) for the next steps.
