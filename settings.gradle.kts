@@ -1,2 +1,2 @@
 rootProject.name = "Vanguard"
-include(":protocol-core")
+include(":protocol-core", ":android-runtime")
