@@ -1,6 +1,25 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { canonicalizeJson } from "../src/protocol/canonical-json";
-import { canonicalUnsignedEvent } from "../src/protocol/event-protocol";
+import {
+  canonicalUnsignedEvent,
+  eventIdForCanonicalMessage
+} from "../src/protocol/event-protocol";
+
+interface ProtocolVector {
+  readonly version: 1;
+  readonly type: string;
+  readonly authorPublicKey: string;
+  readonly createdAtEpochMs: number;
+  readonly expiresAtEpochMs: number | null;
+  readonly payloadCanonicalJson: string;
+  readonly unsignedCanonicalJson: string;
+  readonly eventId: string;
+}
+
+const vector = JSON.parse(
+  readFileSync(new URL("../protocol/test-vectors/v1-basic-message.json", import.meta.url), "utf8")
+) as ProtocolVector;
 
 describe("canonicalizeJson", () => {
   it("sorts object keys recursively and preserves array order", () => {
@@ -27,19 +46,19 @@ describe("canonicalizeJson", () => {
   });
 });
 
-describe("canonicalUnsignedEvent", () => {
-  it("matches the fixed v1 field order used by the Kotlin codec", () => {
+describe("protocol v1 cross-language vector", () => {
+  it("matches the Kotlin canonical encoder byte-for-byte", () => {
     expect(canonicalUnsignedEvent(
-      "message.created",
-      "A".repeat(59),
-      1700000000000,
-      null,
-      '{"body":"hello","to":"recipient"}'
-    )).toBe(
-      '{"version":1,"type":"message.created","authorPublicKey":"' +
-      "A".repeat(59) +
-      '","createdAtEpochMs":1700000000000,"expiresAtEpochMs":null,"payload":{"body":"hello","to":"recipient"}}'
-    );
+      vector.type,
+      vector.authorPublicKey,
+      vector.createdAtEpochMs,
+      vector.expiresAtEpochMs,
+      vector.payloadCanonicalJson
+    )).toBe(vector.unsignedCanonicalJson);
+  });
+
+  it("derives the same SHA-256 event ID as the Kotlin reference core", async () => {
+    expect(await eventIdForCanonicalMessage(vector.unsignedCanonicalJson)).toBe(vector.eventId);
   });
 
   it("rejects non-canonical payload strings", () => {
