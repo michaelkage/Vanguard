@@ -57,7 +57,7 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           # Google removed the legacy `tools` SDK package. The action's v3 default
           # still requests it and fails before the build starts.
