@@ -34,7 +34,8 @@
 ## Milestone 4 — Android native identity and transport
 - [x] Add local Expo native module for Ed25519 identity creation, signing, verification, and deletion
 - [x] Keep private-key material out of JavaScript and encrypt it at rest with an Android Keystore AES-GCM wrapping key
-- [ ] Build and validate the Expo Android application with the native module
+- [x] Compile the generated Expo Android application and both local native modules in CI
+- [ ] Validate identity creation, signing, verification, and key custody on physical Android devices
 - [ ] Add biometric authorization for key use
 - [ ] Verify Kotlin/TypeScript/native signature bytes against shared protocol test vectors
 - [x] Implement native Android Google Nearby Connections behind the TypeScript transport interface
