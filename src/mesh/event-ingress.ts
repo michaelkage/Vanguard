@@ -18,7 +18,6 @@ export interface RelayPacket {
   readonly envelope: SignedEventEnvelope;
   readonly relay: {
     readonly hopCount: number;
-    readonly maxHops: number;
   };
 }
 
@@ -40,6 +39,8 @@ export interface AuthorTrustPolicy {
 export interface VerifiedIngressOptions {
   readonly signatureVerifier: SignatureVerifier;
   readonly authorTrustPolicy: AuthorTrustPolicy;
+  /** Local relay policy; never accepted from an untrusted peer. */
+  readonly maxHops?: number;
   readonly nowEpochMs?: () => number;
   readonly onAccepted?: (
     peerDeviceId: string,
@@ -63,18 +64,14 @@ function assertRelayMetadata(value: unknown): asserts value is RelayPacket["rela
   }
   const candidate = value as Record<string, unknown>;
   const keys = Object.keys(candidate).sort();
-  if (keys.length !== 2 || keys[0] !== "hopCount" || keys[1] !== "maxHops") {
+  if (keys.length !== 1 || keys[0] !== "hopCount") {
     throw new TypeError("Relay metadata contains unexpected fields");
   }
   if (
-    typeof candidate.maxHops !== "number" ||
-    !Number.isSafeInteger(candidate.maxHops) ||
-    candidate.maxHops < 1 ||
-    candidate.maxHops > 8 ||
     typeof candidate.hopCount !== "number" ||
     !Number.isSafeInteger(candidate.hopCount) ||
     candidate.hopCount < 1 ||
-    candidate.hopCount > candidate.maxHops
+    candidate.hopCount > 8
   ) {
     throw new TypeError("Relay hop metadata is outside protocol limits");
   }
@@ -149,6 +146,10 @@ export function attachVerifiedEventIngress(
   options: VerifiedIngressOptions
 ): () => void {
   const now = options.nowEpochMs ?? Date.now;
+  const maxHops = options.maxHops ?? 5;
+  if (!Number.isSafeInteger(maxHops) || maxHops < 1 || maxHops > 8) {
+    throw new RangeError("maxHops must be an integer between 1 and 8");
+  }
   const queue: PendingPacket[] = [];
   let active = 0;
   let disposed = false;
@@ -173,6 +174,11 @@ export function attachVerifiedEventIngress(
       return;
     }
 
+    if (packet.relay.hopCount > maxHops) {
+      reportRejected(pending.peerDeviceId, "invalid_packet");
+      return;
+    }
+
     const receivedAt = now();
     if (!Number.isSafeInteger(receivedAt) || receivedAt < 0) {
       reportRejected(pending.peerDeviceId, "storage_rejected");
@@ -193,7 +199,7 @@ export function attachVerifiedEventIngress(
       const inserted = await storeVerifiedEvent(packet.envelope, verifier, {
         nowEpochMs: receivedAt,
         receivedHopCount: packet.relay.hopCount,
-        maxHops: packet.relay.maxHops,
+        maxHops,
         receivedFromPeerId: pending.peerDeviceId
       });
       if (!disposed) {
