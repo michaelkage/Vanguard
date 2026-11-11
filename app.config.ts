@@ -7,11 +7,9 @@ const config: ExpoConfig = {
   version: "0.1.0",
   orientation: "portrait",
   userInterfaceStyle: "automatic",
-  newArchEnabled: true,
   ios: {
     bundleIdentifier: "dev.vanguard.app",
-    supportsTablet: true,
-    config: { usesNonExemptEncryption: false }
+    supportsTablet: true
   },
   android: {
     package: "dev.vanguard.app",
