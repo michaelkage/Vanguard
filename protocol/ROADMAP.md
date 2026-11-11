@@ -35,6 +35,8 @@
 - [x] Add local Expo native module for Ed25519 identity creation, signing, verification, and deletion
 - [x] Add TypeScript protocol verifier adapter backed by native Ed25519 verification
 - [x] Compose native verification with fail-closed Nearby event ingress
+- [x] Add lifecycle-managed Nearby session orchestration with startup rollback and idempotent teardown
+- [x] Require explicit incoming connection approval/rejection in the session API
 - [x] Keep private-key material out of JavaScript and encrypt it at rest with an Android Keystore AES-GCM wrapping key
 - [x] Compile the generated Expo Android application and both local native modules in CI
 - [ ] Validate identity creation, signing, verification, and key custody on physical Android devices
@@ -48,6 +50,7 @@
 - [x] Enforce receiver-owned maximum hop acceptance and bounded concurrent ingress
 - [ ] Authenticate relay provenance so malicious peers cannot reset hop depth
 - [ ] Handle permission denial UX, disabled radios, reconnects, and lifecycle
+- [ ] Validate session startup/shutdown, connection approval, and recovery on physical Android devices
 - [ ] Validate two physical Android devices and Android-to-iOS interoperability policy
 - [ ] Add authenticated peer sessions and end-to-end encrypted direct messages
 
