@@ -289,7 +289,7 @@ class VanguardNearbyModule : Module() {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
       }
 
-      if (Build.VERSION.SDK_INT in 32..36) {
+      if (Build.VERSION.SDK_INT >= 32) {
         add(Manifest.permission.NEARBY_WIFI_DEVICES)
       }
     }
