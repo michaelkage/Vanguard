@@ -12,6 +12,15 @@ vi.mock("../storage/event-repository", () => ({
   storeVerifiedEvent: vi.fn().mockResolvedValue(true)
 }));
 
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>(complete => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 function createTransportHarness(overrides: Partial<NearbyTransport> = {}) {
   const peerListeners = new Set<(peer: NearbyPeer) => void>();
   const peerLostListeners = new Set<(deviceId: string) => void>();
@@ -151,6 +160,49 @@ describe("NearbyMeshSession", () => {
     expect(session.state).toBe("stopped");
     expect(harness.transport.stop).toHaveBeenCalledOnce();
     expect(harness.listenerCount()).toBe(0);
+  });
+
+
+  it("waits for shutdown before starting a new session", async () => {
+    const discoveryStarted = deferred();
+    const finishDiscovery = deferred();
+    const finishStop = deferred();
+    const harness = createTransportHarness({
+      startDiscovery: vi.fn(async () => {
+        discoveryStarted.resolve();
+        await finishDiscovery.promise;
+      }),
+      stop: vi.fn(async () => {
+        await finishStop.promise;
+      })
+    });
+    const session = createSession(harness.transport);
+
+    const firstStart = session.start();
+    await discoveryStarted.promise;
+    const stopping = session.stop();
+    expect(session.state).toBe("stopping");
+
+    const restart = session.start();
+    await Promise.resolve();
+    expect(harness.transport.startAdvertising).toHaveBeenCalledOnce();
+
+    finishDiscovery.resolve();
+    await firstStart;
+    await vi.waitFor(() => {
+      expect(harness.transport.stop).toHaveBeenCalledOnce();
+    });
+    expect(session.state).toBe("stopping");
+    expect(harness.transport.startAdvertising).toHaveBeenCalledOnce();
+
+    finishStop.resolve();
+    await stopping;
+    await restart;
+    expect(session.state).toBe("running");
+    expect(harness.transport.startAdvertising).toHaveBeenCalledTimes(2);
+    expect(harness.transport.startDiscovery).toHaveBeenCalledTimes(2);
+
+    await session.stop();
   });
 
   it("rejects transport actions unless the session is running", async () => {
