@@ -190,7 +190,7 @@ function renderInspector(){
  ["Author policy",ev.authorTrusted,"Local demo allowlist (not campus registry)"],
  ["Persist decision",ev.verified,"All gates must pass before demo persistence"]
  ];
- var html='<h3>'+escapeHtml(ev.type)+'</h3><div class="kv"><span class="k">Event ID</span><span>'+escapeHtml(ev.id)+'</span><span class="k">Author key</span><span>'+escapeHtml(ev.authorPublicKey.slice(0,18))+'…</span><span class="k">Created</span><span>'+escapeHtml(safeDate(ev.createdAtEpochMs))+'</span><span class="k">Relay hop</span><span>'+ev.relay.hopCount+' / '+ev.relay.maxHops+' <span class="muted">(unsigned)</span></span><span class="k">Delivery</span><span>'+escapeHtml(statusText(ev))+'</span></div><div class="eyebrow" style="margin-top:10px">Verification gates</div><div class="gate-list">';
+ var html='<h3>'+escapeHtml(ev.type)+'</h3><div class="kv"><span class="k">Event ID</span><span>'+escapeHtml(ev.id)+'</span><span class="k">Author key</span><span>'+escapeHtml(ev.authorPublicKey.slice(0,18))+'…</span><span class="k">Created</span><span>'+escapeHtml(safeDate(ev.createdAtEpochMs))+'</span><span class="k">Relay hop</span><span>'+ev.relay.hopCount+' / 5 <span class="muted">(receiver policy; unsigned)</span></span><span class="k">Packet bytes</span><span>'+ev.packetBytes+' / 24576</span><span class="k">Delivery</span><span>'+escapeHtml(statusText(ev))+'</span></div><div class="eyebrow" style="margin-top:10px">Verification gates</div><div class="gate-list">';
  gates.forEach(function(g){html+='<div class="gate"><b>'+escapeHtml(g[0])+'</b><span class="'+(g[1]?"pass":"fail")+'">'+(g[1]?"PASS":"FAIL")+' · '+escapeHtml(g[2])+'</span></div>';});
  html+='</div><div class="eyebrow">Signed envelope</div><pre>'+escapeHtml(JSON.stringify(ev.envelope,null,2))+'</pre><div class="eyebrow">Relay metadata · outside signature</div><pre>'+escapeHtml(JSON.stringify(ev.relay,null,2))+'</pre><div class="sim-actions"><button class="secondary" id="toggle-trust">'+(state.allowAuthor?"Block demo author":"Allow demo author")+'</button><button class="secondary" id="tamper">Tamper with signature</button><button class="secondary" id="verify-again">Verify again</button></div>';
  box.innerHTML=html;
@@ -200,7 +200,7 @@ function renderInspector(){
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 async function verifyEvent(ev){
- ev.frameValid=!!ev.envelope&&ev.envelope.version===1&&ev.relay&&Number.isInteger(ev.relay.hopCount)&&ev.relay.hopCount>=1&&ev.relay.hopCount<=8;
+ ev.packetBytes=encoder.encode(JSON.stringify({version:1,envelope:ev.envelope,relay:ev.relay})).length;ev.frameValid=!!ev.envelope&&ev.envelope.version===1&&ev.relay&&Object.keys(ev.relay).length===1&&Object.prototype.hasOwnProperty.call(ev.relay,"hopCount")&&Number.isInteger(ev.relay.hopCount)&&ev.relay.hopCount>=1&&ev.relay.hopCount<=8&&ev.packetBytes>0&&ev.packetBytes<=24576;
  var msg=unsignedMessage(ev.envelope);var recomputed=await digestId(msg);
  ev.idValid=recomputed===ev.envelope.id;
  var sig=Uint8Array.from(atob(ev.envelope.signature.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.signature.length%4)%4)),function(c){return c.charCodeAt(0);});
@@ -228,7 +228,7 @@ async function queueEvent(){
  var msg=unsignedMessage(event);event.id=await digestId(msg);
  var sig=await crypto.subtle.sign({name:"Ed25519"},state.keys.privateKey,utf8(msg));event.signature=b64url(new Uint8Array(sig));
  var envelope={version:1,id:event.id,type:event.type,authorPublicKey:event.authorPublicKey,createdAtEpochMs:event.createdAtEpochMs,expiresAtEpochMs:null,payloadCanonicalJson:event.payloadCanonicalJson,signature:event.signature};
- var relay={hopCount:1,maxHops:5};
+ var relay={hopCount:1};
  var record={id:event.id,type:event.type,authorPublicKey:event.authorPublicKey,createdAtEpochMs:event.createdAtEpochMs,payload:payload,envelope:envelope,relay:relay,frameValid:false,idValid:false,signatureValid:false,authorTrusted:false,verified:false,rejected:false,relayed:false,cloud:false};
  state.events.unshift(record);state.selected=record.id;
  await verifyEvent(record);
@@ -237,8 +237,8 @@ async function queueEvent(){
 function relaySelected(){
  var ev=selected();if(!ev)return;
  if(!ev.verified){setLab("Relay blocked: event has not passed signature and author-policy checks.");return;}
- if(ev.relay.hopCount>=ev.relay.maxHops){setLab("Relay blocked: receiver-side hop ceiling reached.");return;}
- ev.relay={hopCount:ev.relay.hopCount+1,maxHops:ev.relay.maxHops};ev.relayed=true;
+ if(ev.relay.hopCount>=5){setLab("Relay blocked: receiver-side hop ceiling reached.");return;}
+ ev.relay={hopCount:ev.relay.hopCount+1};ev.relayed=true;
  renderList();setLab("Simulated one-hop forward. Relay metadata changed; signed envelope and event ID did not.");
 }
 function cloudAck(){
