@@ -187,6 +187,7 @@ export class CampusAuthorRegistry {
   private cachedSnapshot: AuthorRegistrySnapshot | null | undefined;
   private snapshotLoad: Promise<AuthorRegistrySnapshot | null> | undefined;
   private snapshotGeneration = 0;
+  private conflictSequence: number | undefined;
   private installQueue: Promise<void> = Promise.resolve();
   private readonly nowEpochMs: () => number;
   private readonly allowedClockSkewMs: number;
@@ -239,7 +240,15 @@ export class CampusAuthorRegistry {
     // disagreement can only make the freshness decision more restrictive.
     const effectiveNow = Math.max(clockNow, nowEpochMs);
     const snapshot = await this.getVerifiedSnapshot();
-    if (!snapshot || !this.isFresh(snapshot, effectiveNow)) return false;
+    if (!snapshot) return false;
+
+    // A same-sequence signed conflict means the server has equivocated. Do
+    // not trust either view until a strictly newer snapshot resolves it.
+    if (this.conflictSequence !== undefined) {
+      if (snapshot.sequence <= this.conflictSequence) return false;
+      this.conflictSequence = undefined;
+    }
+    if (!this.isFresh(snapshot, effectiveNow)) return false;
 
     let low = 0;
     let high = snapshot.authors.length - 1;
@@ -273,13 +282,34 @@ export class CampusAuthorRegistry {
     if (!verified) throw new Error("Author registry server signature verification failed");
 
     const result = await this.options.store.saveIfNewer(snapshot, now);
-    if (result === "stale") throw new Error("Author registry snapshot rollback rejected");
+    if (result === "stale") {
+      this.invalidateSnapshotCache();
+      throw new Error("Author registry snapshot rollback rejected");
+    }
     if (result === "conflict") {
+      this.conflictSequence = Math.max(this.conflictSequence ?? 0, snapshot.sequence);
+      this.invalidateSnapshotCache();
       throw new Error("Author registry snapshot sequence equivocation rejected");
     }
+    if (result !== "installed" && result !== "unchanged") {
+      this.invalidateSnapshotCache();
+      throw new Error("Author registry snapshot store returned an invalid result");
+    }
 
+    if (
+      this.conflictSequence !== undefined &&
+      snapshot.sequence > this.conflictSequence
+    ) {
+      this.conflictSequence = undefined;
+    }
     this.snapshotGeneration += 1;
     this.cachedSnapshot = snapshot;
+    this.snapshotLoad = undefined;
+  }
+
+  private invalidateSnapshotCache(): void {
+    this.snapshotGeneration += 1;
+    this.cachedSnapshot = undefined;
     this.snapshotLoad = undefined;
   }
 
