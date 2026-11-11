@@ -200,6 +200,22 @@ describe("CampusAuthorRegistry", () => {
     expect(await registry.isTrustedAuthor(activeKey, now)).toBe(false);
   });
 
+
+  it("fails closed when ingress and registry clock sources disagree", async () => {
+    const memory = createStore();
+    const { registry } = createRegistry(memory.store, {
+      now: () => 600_000,
+      maxAge: 10_000
+    });
+
+    await registry.installSnapshot(makeSnapshot({
+      issuedAtEpochMs: 599_000,
+      expiresAtEpochMs: 1_000_000
+    }));
+
+    expect(await registry.isTrustedAuthor(activeKey, 0)).toBe(false);
+  });
+
   it("requires strictly sorted unique registry entries", () => {
     expect(() => assertAuthorRegistrySnapshot(makeSnapshot({
       authors: [
