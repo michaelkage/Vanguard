@@ -5,7 +5,7 @@ import {
   decodeRelayPacket,
   encodeRelayPacket
 } from "./event-ingress";
-import { storeVerifiedEvent } from "../storage/event-repository";
+import { EventVerificationError, storeVerifiedEvent } from "../storage/event-repository";
 import type { SignedEventEnvelope } from "../protocol/envelope";
 
 vi.mock("../storage/event-repository", () => ({
@@ -137,7 +137,7 @@ describe("verified event ingress", () => {
 
     vi.mocked(storeVerifiedEvent).mockImplementation(async (_candidate, verifier) => {
       if (!(await verifier.verify(envelope))) {
-        throw new Error("Rejected by verifier");
+        throw new EventVerificationError();
       }
       return true;
     });
@@ -153,7 +153,7 @@ describe("verified event ingress", () => {
     }));
 
     await vi.waitFor(() => {
-      expect(onRejected).toHaveBeenCalledWith("peer-a", "storage_rejected");
+      expect(onRejected).toHaveBeenCalledWith("peer-a", "signature_or_author_rejected");
     });
     expect(authorTrustPolicy.isTrustedAuthor).toHaveBeenCalledOnce();
   });
