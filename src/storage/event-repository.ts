@@ -246,7 +246,6 @@ export async function markCloudConfirmed(eventIds: readonly string[]): Promise<v
         "UPDATE events SET sync_state = 'confirmed' WHERE event_id = ?",
         eventId
       );
-      await database.runAsync("DELETE FROM relay_queue WHERE event_id = ?", eventId);
     }
   });
 }
