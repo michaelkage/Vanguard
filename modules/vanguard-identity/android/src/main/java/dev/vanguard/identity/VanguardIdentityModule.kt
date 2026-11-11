@@ -282,30 +282,32 @@ private class IdentityKeyStore(context: Context) {
     private val KEY_VALIDATION_CHALLENGE =
       "vanguard-ed25519-key-check-v1".toByteArray(StandardCharsets.UTF_8)
 
-    fun verify(publicKeyEncoded: String, message: String, signatureEncoded: String): Boolean =
-      try {
+    fun verify(publicKeyEncoded: String, message: String, signatureEncoded: String): Boolean {
+      return try {
         val publicKeyBytes = decodeUrl(publicKeyEncoded)
         val signatureBytes = decodeUrl(signatureEncoded)
+        val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
+
         if (
           publicKeyBytes.size != X509_ED25519_PUBLIC_KEY_BYTES ||
-          signatureBytes.size != 64
+          signatureBytes.size != 64 ||
+          messageBytes.size > MAX_SIGNING_MESSAGE_BYTES
         ) {
-          return false
-        }
-        val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
-        if (messageBytes.size > MAX_SIGNING_MESSAGE_BYTES) return false
-
-        val provider = BouncyCastleProvider()
-        val publicKey = KeyFactory.getInstance(ALGORITHM, provider)
-          .generatePublic(X509EncodedKeySpec(publicKeyBytes))
-        Signature.getInstance(ALGORITHM, provider).run {
-          initVerify(publicKey)
-          update(messageBytes)
-          verify(signatureBytes)
+          false
+        } else {
+          val provider = BouncyCastleProvider()
+          val publicKey = KeyFactory.getInstance(ALGORITHM, provider)
+            .generatePublic(X509EncodedKeySpec(publicKeyBytes))
+          Signature.getInstance(ALGORITHM, provider).run {
+            initVerify(publicKey)
+            update(messageBytes)
+            verify(signatureBytes)
+          }
         }
       } catch (_: Exception) {
         false
       }
+    }
 
     private fun encodeUrl(bytes: ByteArray): String =
       Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
