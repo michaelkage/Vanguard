@@ -49,6 +49,8 @@ The module checks runtime permissions by API level: coarse location on API 23–
 
 Nearby Connections encrypts the transport link and exposes its short authentication digits. Neither fact proves that the remote endpoint controls a campus-enrolled Vanguard identity key. The application verifies the Vanguard signature and applies an injected author-trust policy before storing any received event. The mesh ingress bounds packet size and concurrent processing, and the receiver—not the sender—sets the maximum accepted hop count. The hop count itself is unauthenticated mutable metadata, so a malicious relay can reset it; authenticated relay provenance is required before claiming adversarial hop-limit enforcement. The author-trust policy must fail closed for unknown keys, revoked keys, and stale revocation snapshots. The authentication digits are exposed so a future trust UI can let users compare them.
 
+The `NearbyMeshSession` service owns listener registration, verified ingress attachment, advertising/discovery startup, explicit connection approval/rejection, and teardown. Startup awaits both radio operations and rolls back listeners and transport if either fails. The Android composition factory supplies the native Ed25519 verifier but requires an injected author-trust policy; there is deliberately no permissive default while enrollment and revocation infrastructure is absent. Android background discovery remains opportunistic.
+
 This implementation is Android-only and requires compatible Google Play services. iOS will use a separate transport adapter; cross-platform Android-to-iOS interoperation is not claimed. The code still requires Android compilation and physical-device validation.
 
 ## Decision 8 — Sync semantics
