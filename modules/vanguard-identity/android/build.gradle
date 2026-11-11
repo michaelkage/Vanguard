@@ -1,0 +1,18 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.vanguard.identity'
+version = '1.0.0'
+
+android {
+  namespace 'dev.vanguard.identity'
+  defaultConfig {
+    minSdkVersion 23
+  }
+}
+
+dependencies {
+  implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
+}
