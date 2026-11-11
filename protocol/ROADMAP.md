@@ -43,7 +43,8 @@
 - [x] Add explicit connection acceptance/rejection and authentication-digit callbacks
 - [x] Bound Vanguard byte payloads to 24 KiB and expose transfer callbacks
 - [x] Add bounded relay packet framing and fail-closed signature/author-policy ingress
-- [x] Enforce receiver-owned relay hop ceilings and bounded concurrent ingress
+- [x] Enforce receiver-owned maximum hop acceptance and bounded concurrent ingress
+- [ ] Authenticate relay provenance so malicious peers cannot reset hop depth
 - [ ] Handle permission denial UX, disabled radios, reconnects, and lifecycle
 - [ ] Validate two physical Android devices and Android-to-iOS interoperability policy
 - [ ] Add authenticated peer sessions and end-to-end encrypted direct messages
