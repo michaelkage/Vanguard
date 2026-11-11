@@ -46,7 +46,8 @@ export interface CampusAuthorRegistryOptions {
   readonly maxSnapshotAgeMs: number;
   readonly signatureVerifier: AuthorRegistrySignatureVerifier;
   readonly store: AuthorRegistrySnapshotStore;
-  readonly nowEpochMs?: () => number;
+  /** Must be a rollback-aware clock shared with the mesh ingress timestamp source. */
+  readonly nowEpochMs: () => number;
   readonly allowedClockSkewMs?: number;
 }
 
@@ -186,7 +187,7 @@ export class CampusAuthorRegistry {
     if (!Number.isSafeInteger(this.allowedClockSkewMs) || this.allowedClockSkewMs < 0) {
       throw new RangeError("allowedClockSkewMs must be a non-negative safe integer");
     }
-    this.nowEpochMs = options.nowEpochMs ?? Date.now;
+    this.nowEpochMs = options.nowEpochMs;
   }
 
   /** Installs a verified snapshot, rejecting rollback and same-sequence equivocation. */
@@ -205,8 +206,20 @@ export class CampusAuthorRegistry {
       return false;
     }
 
+    const clockNow = this.nowEpochMs();
+    if (
+      !Number.isSafeInteger(clockNow) ||
+      clockNow < 0 ||
+      Math.abs(clockNow - nowEpochMs) > this.allowedClockSkewMs
+    ) {
+      return false;
+    }
+
+    // Use the later of the ingress timestamp and registry clock. A clock
+    // disagreement can only make the freshness decision more restrictive.
+    const effectiveNow = Math.max(clockNow, nowEpochMs);
     const snapshot = await this.getVerifiedSnapshot();
-    if (!snapshot || !this.isFresh(snapshot, nowEpochMs)) return false;
+    if (!snapshot || !this.isFresh(snapshot, effectiveNow)) return false;
 
     let low = 0;
     let high = snapshot.authors.length - 1;
