@@ -146,6 +146,24 @@ export function assertAuthorRegistrySnapshot(
   }
 }
 
+function freezeSnapshot(snapshot: AuthorRegistrySnapshot): AuthorRegistrySnapshot {
+  const authors = Object.freeze(
+    snapshot.authors.map(entry => Object.freeze({
+      publicKey: entry.publicKey,
+      status: entry.status
+    }))
+  );
+  return Object.freeze({
+    version: snapshot.version,
+    campusId: snapshot.campusId,
+    sequence: snapshot.sequence,
+    issuedAtEpochMs: snapshot.issuedAtEpochMs,
+    expiresAtEpochMs: snapshot.expiresAtEpochMs,
+    authors,
+    signature: snapshot.signature
+  });
+}
+
 export function canonicalAuthorRegistryMessage(
   snapshot: AuthorRegistrySnapshot
 ): string {
