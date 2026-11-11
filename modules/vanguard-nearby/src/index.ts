@@ -40,7 +40,11 @@ interface NativeNearbyModule {
 }
 
 const native = requireNativeModule<NativeNearbyModule>("VanguardNearby");
-const emitter = new EventEmitter(native as never);
+interface NativeEventEmitter {
+  addListener<T>(eventName: string, listener: (event: T) => void): { remove(): void };
+}
+
+const emitter = new EventEmitter(native as never) as unknown as NativeEventEmitter;
 
 export const VanguardNearby = {
   getMissingPermissions: () => native.getMissingPermissions(),
