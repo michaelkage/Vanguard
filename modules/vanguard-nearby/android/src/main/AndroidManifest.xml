@@ -13,7 +13,7 @@
     android:usesPermissionFlags="neverForLocation" />
   <uses-permission
     android:name="android.permission.NEARBY_WIFI_DEVICES"
-    android:minSdkVersion="33"
+    android:minSdkVersion="32"
     android:usesPermissionFlags="neverForLocation" />
   <uses-permission
     android:name="android.permission.ACCESS_LOCAL_NETWORK"
