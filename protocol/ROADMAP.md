@@ -39,15 +39,18 @@
 - [ ] Add biometric authorization for key use
 - [ ] Verify Kotlin/TypeScript/native signature bytes against shared protocol test vectors
 - [x] Implement native Android Google Nearby Connections behind the TypeScript transport interface
-- [x] Add Android Nearby permission declarations and runtime permission checks
+- [x] Add Android Nearby permission declarations and runtime permission checks, including the Android 13 permission boundary
 - [x] Add explicit connection acceptance/rejection and authentication-digit callbacks
 - [x] Bound Vanguard byte payloads to 24 KiB and expose transfer callbacks
-- [ ] Handle permission denial, disabled radios, reconnects, lifecycle, and bounded payloads
+- [x] Add bounded relay packet framing and fail-closed signature/author-policy ingress
+- [x] Enforce receiver-owned relay hop ceilings and bounded concurrent ingress
+- [ ] Handle permission denial UX, disabled radios, reconnects, and lifecycle
 - [ ] Validate two physical Android devices and Android-to-iOS interoperability policy
 - [ ] Add authenticated peer sessions and end-to-end encrypted direct messages
 
 ## Milestone 5 — store-carry-forward acceptance
-- [ ] Verify event signatures before persistence on every ingress path
+- [x] Verify event signatures and author-trust policy before persistence on the Nearby ingress path
+- [ ] Verify event signatures before persistence on every remaining ingress path
 - [ ] Test A-to-B-to-C relay after A leaves range
 - [ ] Test duplicate suppression and peer delivery receipts
 - [ ] Test expiry, hop limits, storage pressure, retry, and process restart
