@@ -187,6 +187,7 @@ function renderInspector(){
  ["Frame shape",ev.frameValid,"Exact v1 envelope and relay fields"],
  ["Event ID",ev.idValid,"SHA-256 over canonical unsigned bytes"],
  ["Ed25519 signature",ev.signatureValid,"WebCrypto verification"],
+ ["Expiry",ev.notExpired,"Expired events are not accepted into the active store"],
  ["Author policy",ev.authorTrusted,"Local demo allowlist (not campus registry)"],
  ["Persist decision",ev.verified,"All gates must pass before demo persistence"]
  ];
@@ -199,14 +200,33 @@ function renderInspector(){
  $("verify-again").addEventListener("click",function(){verifyEvent(ev).then(function(){state.selected=ev.id;renderList();setLab(ev.verified?"Event passed both verification gates.":"Event rejected by signature or author policy.");}).catch(function(err){setLab("Verification error: "+err.message);});});
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function validEnvelopeShape(e){
+ if(!e||typeof e!=="object"||Array.isArray(e))return false;
+ var expected=["authorPublicKey","createdAtEpochMs","expiresAtEpochMs","id","payloadCanonicalJson","signature","type","version"].sort();
+ var keys=Object.keys(e).sort();
+ if(keys.length!==expected.length||keys.some(function(k,i){return k!==expected[i];}))return false;
+ if(e.version!==1||typeof e.id!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(e.id))return false;
+ if(typeof e.type!=="string"||!/^[a-z][a-z0-9_.-]{0,63}$/.test(e.type))return false;
+ if(typeof e.authorPublicKey!=="string"||!/^[A-Za-z0-9_-]{59}$/.test(e.authorPublicKey))return false;
+ if(!Number.isSafeInteger(e.createdAtEpochMs)||e.createdAtEpochMs<0)return false;
+ if(e.expiresAtEpochMs!==null&&(!Number.isSafeInteger(e.expiresAtEpochMs)||e.expiresAtEpochMs<=e.createdAtEpochMs))return false;
+ if(typeof e.payloadCanonicalJson!=="string"||encoder.encode(e.payloadCanonicalJson).length>16384)return false;
+ try{var p=JSON.parse(e.payloadCanonicalJson);if(!p||typeof p!=="object"||Array.isArray(p)||canonical(p)!==e.payloadCanonicalJson)return false;}catch(_){return false;}
+ if(typeof e.signature!=="string"||!/^[A-Za-z0-9_-]{86}$/.test(e.signature))return false;
+ return encoder.encode(JSON.stringify(e)).length<=24576;
+}
 async function verifyEvent(ev){
- ev.packetBytes=encoder.encode(JSON.stringify({version:1,envelope:ev.envelope,relay:ev.relay})).length;ev.frameValid=!!ev.envelope&&ev.envelope.version===1&&ev.relay&&Object.keys(ev.relay).length===1&&Object.prototype.hasOwnProperty.call(ev.relay,"hopCount")&&Number.isInteger(ev.relay.hopCount)&&ev.relay.hopCount>=1&&ev.relay.hopCount<=8&&ev.packetBytes>0&&ev.packetBytes<=24576;
+ var frame={version:1,envelope:ev.envelope,relay:ev.relay};
+ var frameKeys=Object.keys(frame).sort(),relayKeys=ev.relay&&typeof ev.relay==="object"?Object.keys(ev.relay).sort():[];
+ ev.packetBytes=encoder.encode(JSON.stringify(frame)).length;
+ ev.frameValid=frameKeys.join(",")==="envelope,relay,version"&&frame.version===1&&relayKeys.length===1&&relayKeys[0]==="hopCount"&&Number.isSafeInteger(ev.relay.hopCount)&&ev.relay.hopCount>=1&&ev.relay.hopCount<=8&&validEnvelopeShape(ev.envelope)&&ev.packetBytes>0&&ev.packetBytes<=24576;
  var msg=unsignedMessage(ev.envelope);var recomputed=await digestId(msg);
- ev.idValid=recomputed===ev.envelope.id;
+ ev.idValid=ev.frameValid&&recomputed===ev.envelope.id;
  var sig=Uint8Array.from(atob(ev.envelope.signature.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.signature.length%4)%4)),function(c){return c.charCodeAt(0);});
- ev.signatureValid=await crypto.subtle.verify({name:"Ed25519"},state.keys.publicKey,sig,utf8(msg));
+ ev.signatureValid=ev.frameValid&&await crypto.subtle.verify({name:"Ed25519"},state.keys.publicKey,sig,utf8(msg));
+ ev.notExpired=ev.envelope.expiresAtEpochMs===null||Date.now()<ev.envelope.expiresAtEpochMs;
  ev.authorTrusted=state.allowAuthor&&ev.authorPublicKey===state.keys.publicKeyEncoded;
- ev.verified=ev.frameValid&&ev.idValid&&ev.signatureValid&&ev.authorTrusted;
+ ev.verified=ev.frameValid&&ev.idValid&&ev.signatureValid&&ev.notExpired&&ev.authorTrusted;
  ev.rejected=!ev.verified;
  return ev.verified;
 }
@@ -254,7 +274,7 @@ $("relay-btn").addEventListener("click",relaySelected);$("sync-btn").addEventLis
 function detectRepo(){
  var host=location.hostname.split(".");
  var path=location.pathname.split("/").filter(Boolean);
- if(host.length>=3&&host.slice(-2).join(".")==="github.io"&&path.length){return host[0]+"/"+path[0];}
+ if(host.length===2&&host[1]==="github.io"&&path.length){return host[0]+"/"+path[0];}
  if(host.length>=3&&host[host.length-2]==="github"&&host[host.length-1]==="com"&&path.length>=2){return path[0]+"/"+path[1];}
  var q=new URLSearchParams(location.search).get("repo");if(q&&/^[\w.-]+\/[\w.-]+$/.test(q))return q;
  return "michaelkage/Vanguard";
