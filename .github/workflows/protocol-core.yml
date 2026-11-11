@@ -58,6 +58,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Google removed the legacy `tools` SDK package. The action's v3 default
+          # still requests it and fails before the build starts.
+          packages: platform-tools
 
       - name: Install Android SDK 37
         run: sdkmanager "platforms;android-37" "build-tools;37.0.0" "platform-tools"
