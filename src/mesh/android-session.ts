@@ -82,16 +82,21 @@ export function createAndroidNearbyMeshSession(
 export function createAndroidCampusMeshSession(
   options: AndroidCampusMeshSessionOptions
 ): AndroidCampusMeshSessionHandle {
+  const {
+    campusId,
+    pinnedRegistryServerPublicKey,
+    maxRegistrySnapshotAgeMs,
+    ...sessionOptions
+  } = options;
   const authorRegistry = createNativeCampusAuthorRegistry({
-    campusId: options.campusId,
-    pinnedServerPublicKey: options.pinnedRegistryServerPublicKey,
-    maxSnapshotAgeMs: options.maxRegistrySnapshotAgeMs,
-    nowEpochMs: options.nowEpochMs
+    campusId,
+    pinnedServerPublicKey: pinnedRegistryServerPublicKey,
+    maxSnapshotAgeMs: maxRegistrySnapshotAgeMs,
+    nowEpochMs: sessionOptions.nowEpochMs
   });
   const session = createAndroidNearbyMeshSession({
-    ...options,
-    authorTrustPolicy: authorRegistry,
-    nowEpochMs: options.nowEpochMs
+    ...sessionOptions,
+    authorTrustPolicy: authorRegistry
   });
 
   return {
