@@ -188,10 +188,11 @@ export function attachVerifiedEventIngress(
     const verifier: SignatureVerifier = {
       verify: async envelope => {
         if (!(await options.signatureVerifier.verify(envelope))) return false;
-        return options.authorTrustPolicy.isTrustedAuthor(
+        const trusted = await options.authorTrustPolicy.isTrustedAuthor(
           envelope.authorPublicKey,
           receivedAt
         );
+        return !disposed && trusted;
       }
     };
 
