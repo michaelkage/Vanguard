@@ -58,6 +58,32 @@ interface PendingPacket {
   readonly bytes: Uint8Array;
 }
 
+function encodeUtf8(value: string): Uint8Array {
+  const escaped = encodeURIComponent(value);
+  const bytes: number[] = [];
+  for (let index = 0; index < escaped.length; index += 1) {
+    if (escaped[index] === "%") {
+      bytes.push(Number.parseInt(escaped.slice(index + 1, index + 3), 16));
+      index += 2;
+    } else {
+      bytes.push(escaped.charCodeAt(index));
+    }
+  }
+  return Uint8Array.from(bytes);
+}
+
+function decodeUtf8(bytes: Uint8Array): string {
+  const escaped = Array.from(
+    bytes,
+    byte => `%${byte.toString(16).padStart(2, "0")}`
+  ).join("");
+  try {
+    return decodeURIComponent(escaped);
+  } catch {
+    throw new TypeError("Relay packet contains invalid UTF-8");
+  }
+}
+
 function assertRelayMetadata(value: unknown): asserts value is RelayPacket["relay"] {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError("Relay metadata must be an object");
@@ -84,7 +110,7 @@ export function encodeRelayPacket(
 ): Uint8Array {
   assertEnvelopeShape(envelope);
   assertRelayMetadata(relay);
-  const encoded = new TextEncoder().encode(JSON.stringify({
+  const encoded = encodeUtf8(JSON.stringify({
     version: 1,
     envelope,
     relay
@@ -107,7 +133,7 @@ export function decodeRelayPacket(bytes: Uint8Array): RelayPacket {
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
+    parsed = JSON.parse(decodeUtf8(bytes)) as unknown;
   } catch {
     throw new TypeError("Relay packet is not valid UTF-8 JSON");
   }
