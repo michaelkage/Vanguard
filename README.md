@@ -10,6 +10,7 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 - Expo SDK 58 / React Native 0.88 / React 19.3.
 - Expo SQLite with SQLCipher for encrypted local event storage.
 - Expo SecureStore for the SQLCipher database key.
+- A 50 MiB logical event-payload budget; expired events and oldest server-confirmed events are pruned before rejecting new storage. Pending/unconfirmed events are never silently discarded. SQLite page files and WAL overhead mean this is not a hard physical disk-usage ceiling.
 - Native Android key custody and Google Nearby Connections behind application interfaces.
 - Supabase Postgres and Edge Functions as the authoritative synchronization and policy boundary.
 
