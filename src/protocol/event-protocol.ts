@@ -52,7 +52,7 @@ export function canonicalUnsignedEvent(
   return `{"version":1,"type":${JSON.stringify(type)},"authorPublicKey":${JSON.stringify(authorPublicKey)},"createdAtEpochMs":${createdAtEpochMs},"expiresAtEpochMs":${expiresAtEpochMs === null ? "null" : expiresAtEpochMs},"payload":${payloadCanonicalJson}}`;
 }
 
-async function sha256Base64Url(value: string): Promise<string> {
+export async function eventIdForCanonicalMessage(value: string): Promise<string> {
   const digest = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     value,
@@ -82,7 +82,7 @@ export async function createSignedEvent(
   );
   const envelope: SignedEventEnvelope = {
     version: 1,
-    id: await sha256Base64Url(canonicalMessage),
+    id: await eventIdForCanonicalMessage(canonicalMessage),
     type: input.type,
     authorPublicKey: identity.publicKey,
     createdAtEpochMs: input.createdAtEpochMs,
