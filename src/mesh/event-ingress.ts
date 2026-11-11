@@ -1,6 +1,5 @@
 import {
   assertEnvelopeShape,
-  MAX_ENVELOPE_BYTES,
   type SignedEventEnvelope
 } from "../protocol/envelope";
 import {
@@ -93,7 +92,7 @@ export function encodeRelayPacket(
     envelope,
     relay
   }));
-  if (encoded.byteLength > MAX_RELAY_PACKET_BYTES || encoded.byteLength < MAX_ENVELOPE_BYTES - MAX_ENVELOPE_BYTES) {
+  if (encoded.byteLength === 0 || encoded.byteLength > MAX_RELAY_PACKET_BYTES) {
     throw new RangeError("Relay packet must fit within the 24 KiB transport limit");
   }
   return encoded;
