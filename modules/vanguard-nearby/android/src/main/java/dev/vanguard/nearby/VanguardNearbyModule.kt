@@ -179,7 +179,6 @@ class VanguardNearbyModule : Module() {
         DiscoveryOptions.Builder().setStrategy(Strategy.P2P_CLUSTER).build()
       ).await()
       discovering = true
-      activeServiceId = serviceId
       sendEvent("onTransportStateChanged", mapOf("state" to "discovering"))
       null
     }
