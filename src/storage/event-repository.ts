@@ -75,7 +75,17 @@ export async function storeVerifiedEvent(
       "SELECT event_id FROM events WHERE event_id = ?",
       envelope.id
     );
-    if (existing) return;
+    if (existing) {
+      if (options.receivedFromPeerId !== undefined) {
+        await database.runAsync(
+          "INSERT OR IGNORE INTO peer_sync_history (peer_device_id, event_id, delivered_at_ms) VALUES (?, ?, ?)",
+          options.receivedFromPeerId,
+          envelope.id,
+          options.nowEpochMs
+        );
+      }
+      return;
+    }
 
     await database.runAsync(
       "DELETE FROM events WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?",
