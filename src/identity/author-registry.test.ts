@@ -146,7 +146,7 @@ describe("CampusAuthorRegistry", () => {
     const submitted = makeSnapshot();
 
     await registry.installSnapshot(submitted);
-    (submitted.authors as { publicKey: string; status: "active" | "suspended" | "revoked" }[])[0]!.status =
+    (submitted.authors as unknown as { publicKey: string; status: "active" | "suspended" | "revoked" }[])[0]!.status =
       "revoked";
 
     expect(await registry.isTrustedAuthor(activeKey, 2_000)).toBe(true);
