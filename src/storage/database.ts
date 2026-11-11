@@ -76,6 +76,18 @@ async function openEncryptedDatabase(): Promise<SQLite.SQLiteDatabase> {
   const database = await SQLite.openDatabaseAsync(DATABASE_NAME);
 
   try {
+    // SQLite silently ignores unknown PRAGMAs. Fail closed if this binary was
+    // built without SQLCipher instead of pretending the database is encrypted.
+    const cipher = await database.getFirstAsync<{ cipher_version: string }>(
+      "PRAGMA cipher_version"
+    );
+    if (typeof cipher?.cipher_version !== "string" || cipher.cipher_version.length === 0) {
+      throw new Error(
+        "SQLCipher is unavailable in this build. Rebuild with expo-sqlite useSQLCipher enabled."
+      );
+    }
+
+    // The key is generated as lowercase hex, so interpolation cannot inject SQL.
     await database.execAsync(`PRAGMA key = "x'${key}'"`);
     await database.execAsync("PRAGMA cipher_memory_security = ON");
     await database.execAsync("PRAGMA foreign_keys = ON");
