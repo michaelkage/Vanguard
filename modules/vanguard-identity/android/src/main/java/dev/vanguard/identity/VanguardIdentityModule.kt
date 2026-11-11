@@ -73,8 +73,7 @@ private class IdentityKeyStore(context: Context) {
     }
 
     val key = getOrCreateWrappingKey()
-    val generator = KeyPairGenerator.getInstance(ALGORITHM, provider)
-    val pair = generator.generateKeyPair()
+    val pair = KeyPairGenerator.getInstance(ALGORITHM, provider).generateKeyPair()
     val privateBytes = pair.private.encoded
       ?: throw IllegalStateException("Ed25519 provider did not encode the private key")
     val publicBytes = pair.public.encoded
@@ -175,9 +174,13 @@ private class IdentityKeyStore(context: Context) {
     }
 
     val publicKey = readField(MAX_PUBLIC_KEY_BYTES)
+    check(publicKey.size == X509_ED25519_PUBLIC_KEY_BYTES) {
+      "Stored Vanguard public key has an invalid length"
+    }
     val iv = readField(GCM_IV_BYTES)
     check(iv.size == GCM_IV_BYTES) { "Invalid identity encryption IV" }
     val ciphertext = readField(MAX_CIPHERTEXT_BYTES)
+    check(ciphertext.size >= GCM_TAG_BYTES) { "Invalid identity ciphertext" }
     check(!buffer.hasRemaining()) { "Unexpected trailing identity record data" }
     return IdentityRecord(publicKey, iv, ciphertext)
   }
@@ -267,26 +270,31 @@ private class IdentityKeyStore(context: Context) {
     private const val WRAPPING_KEY_ALIAS = "dev.vanguard.identity.wrap.v1"
     private const val IDENTITY_FILE_NAME = "vanguard-identity-v1.bin"
     private const val GCM_TAG_BITS = 128
+    private const val GCM_TAG_BYTES = GCM_TAG_BITS / 8
     private const val GCM_IV_BYTES = 12
+    private const val X509_ED25519_PUBLIC_KEY_BYTES = 44
     private const val MAX_SIGNING_MESSAGE_BYTES = 64 * 1024
     private const val MAX_PUBLIC_KEY_BYTES = 128
     private const val MAX_CIPHERTEXT_BYTES = 4096
-    private const val MIN_RECORD_BYTES = 4 + 4 + 1 + 4 + GCM_IV_BYTES + 4 + 16
+    private const val MIN_RECORD_BYTES = 4 + 4 + X509_ED25519_PUBLIC_KEY_BYTES + 4 + GCM_IV_BYTES + 4 + GCM_TAG_BYTES
     private const val MAX_RECORD_BYTES = 8192
     private val MAGIC = byteArrayOf(0x56, 0x47, 0x49, 0x31)
     private val KEY_VALIDATION_CHALLENGE =
       "vanguard-ed25519-key-check-v1".toByteArray(StandardCharsets.UTF_8)
 
-    fun verify(publicKeyEncoded: String, message: String, signatureEncoded: String): Boolean {
-      val publicKeyBytes = decodeUrl(publicKeyEncoded)
-      val signatureBytes = decodeUrl(signatureEncoded)
-      if (publicKeyBytes.size !in 32..MAX_PUBLIC_KEY_BYTES || signatureBytes.size != 64) {
-        return false
-      }
-      val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
-      if (messageBytes.size > MAX_SIGNING_MESSAGE_BYTES) return false
+    fun verify(publicKeyEncoded: String, message: String, signatureEncoded: String): Boolean =
+      try {
+        val publicKeyBytes = decodeUrl(publicKeyEncoded)
+        val signatureBytes = decodeUrl(signatureEncoded)
+        if (
+          publicKeyBytes.size != X509_ED25519_PUBLIC_KEY_BYTES ||
+          signatureBytes.size != 64
+        ) {
+          return false
+        }
+        val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
+        if (messageBytes.size > MAX_SIGNING_MESSAGE_BYTES) return false
 
-      return try {
         val provider = BouncyCastleProvider()
         val publicKey = KeyFactory.getInstance(ALGORITHM, provider)
           .generatePublic(X509EncodedKeySpec(publicKeyBytes))
@@ -298,7 +306,6 @@ private class IdentityKeyStore(context: Context) {
       } catch (_: Exception) {
         false
       }
-    }
 
     private fun encodeUrl(bytes: ByteArray): String =
       Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
