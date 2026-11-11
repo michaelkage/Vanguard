@@ -8,6 +8,7 @@ export interface SignatureVerifier {
 
 export interface RelayBatchItem {
   readonly envelope: SignedEventEnvelope;
+  /** Hop count to place in the outgoing relay metadata. */
   readonly hopCount: number;
   readonly maxHops: number;
 }
@@ -23,15 +24,19 @@ export class EventVerificationError extends Error {
 export async function storeVerifiedEvent(
   candidate: unknown,
   verifier: SignatureVerifier,
-  options: { readonly nowEpochMs: number; readonly maxHops?: number; readonly receivedHopCount?: number }
+  options: {
+    readonly nowEpochMs: number;
+    readonly maxHops?: number;
+    readonly receivedHopCount?: number;
+    readonly receivedFromPeerId?: string;
+  }
 ): Promise<boolean> {
   assertEnvelopeShape(candidate);
   const envelope = candidate;
 
-  if (envelope.expiresAtEpochMs !== null && envelope.expiresAtEpochMs <= options.nowEpochMs) {
-    throw new Error("Expired events cannot enter the active event store");
+  if (!Number.isSafeInteger(options.nowEpochMs) || options.nowEpochMs < 0) {
+    throw new RangeError("nowEpochMs must be a non-negative safe integer");
   }
-  if (!(await verifier.verify(envelope))) throw new EventVerificationError();
 
   const maxHops = options.maxHops ?? 5;
   if (!Number.isSafeInteger(maxHops) || maxHops < 1 || maxHops > 8) {
@@ -42,6 +47,14 @@ export async function storeVerifiedEvent(
   if (!Number.isSafeInteger(receivedHopCount) || receivedHopCount < 0 || receivedHopCount > maxHops) {
     throw new RangeError("receivedHopCount must be between zero and maxHops");
   }
+
+  if (options.receivedFromPeerId !== undefined && options.receivedFromPeerId.length === 0) {
+    throw new TypeError("receivedFromPeerId cannot be empty");
+  }
+  if (envelope.expiresAtEpochMs !== null && envelope.expiresAtEpochMs <= options.nowEpochMs) {
+    throw new Error("Expired events cannot enter the active event store");
+  }
+  if (!(await verifier.verify(envelope))) throw new EventVerificationError();
 
   const database = await getDatabase();
   let inserted = false;
@@ -58,17 +71,24 @@ export async function storeVerifiedEvent(
     );
     inserted = result.changes > 0;
 
-    if (inserted) {
-      if (receivedHopCount < maxHops) {
-        await database.runAsync(
-          "INSERT INTO relay_queue (event_id, hop_count, max_hops, attempts, next_attempt_at_ms, queued_at_ms) VALUES (?, ?, ?, 0, ?, ?)",
-          envelope.id,
-          receivedHopCount,
-          maxHops,
-          options.nowEpochMs,
-          options.nowEpochMs
-        );
-      }
+    if (inserted && receivedHopCount < maxHops) {
+      await database.runAsync(
+        "INSERT INTO relay_queue (event_id, hop_count, max_hops, attempts, next_attempt_at_ms, queued_at_ms) VALUES (?, ?, ?, 0, ?, ?)",
+        envelope.id,
+        receivedHopCount,
+        maxHops,
+        options.nowEpochMs,
+        options.nowEpochMs
+      );
+    }
+
+    if (inserted && options.receivedFromPeerId !== undefined) {
+      await database.runAsync(
+        "INSERT INTO peer_sync_history (peer_device_id, event_id, delivered_at_ms) VALUES (?, ?, ?)",
+        options.receivedFromPeerId,
+        envelope.id,
+        options.nowEpochMs
+      );
     }
   });
 
@@ -104,6 +124,7 @@ export async function getRelayBatchForPeer(
   }));
 }
 
+/** Records successful delivery to a peer without changing the event's path depth. */
 export async function recordPeerDelivery(
   eventId: string,
   peerDeviceId: string,
@@ -160,6 +181,7 @@ export async function getCloudSyncBatch(
   return rows.map(row => JSON.parse(row.envelope_json) as SignedEventEnvelope);
 }
 
+/** Call only with event IDs explicitly acknowledged by the gateway response. */
 export async function markCloudConfirmed(eventIds: readonly string[]): Promise<void> {
   if (eventIds.length === 0) return;
   if (eventIds.length > 200) {
