@@ -4,7 +4,7 @@ import * as SQLite from "expo-sqlite";
 
 const DATABASE_NAME = "vanguard.db";
 const DATABASE_KEY_NAME = "vanguard.sqlcipher.key.v1";
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
 
@@ -67,6 +67,18 @@ async function migrate(database: SQLite.SQLiteDatabase): Promise<void> {
         );
       `);
       await database.execAsync("PRAGMA user_version = 1");
+    }
+
+    if (currentVersion < 2) {
+      await database.execAsync(`
+        CREATE TABLE author_registry_snapshots (
+          campus_id TEXT PRIMARY KEY NOT NULL,
+          sequence INTEGER NOT NULL CHECK (sequence > 0),
+          snapshot_json TEXT NOT NULL,
+          installed_at_ms INTEGER NOT NULL CHECK (installed_at_ms >= 0)
+        );
+      `);
+      await database.execAsync("PRAGMA user_version = 2");
     }
   });
 }
