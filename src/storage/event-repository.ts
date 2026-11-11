@@ -188,7 +188,11 @@ export async function getRelayBatchForPeer(
   }));
 }
 
-/** Records a successful peer transfer and advances the local relay depth. */
+/**
+ * Records a successful transfer to one peer. Hop depth is not incremented here:
+ * every peer sent by this node is at the same next-hop depth. The receiving node
+ * records that depth when it stores the event.
+ */
 export async function recordPeerDelivery(
   eventId: string,
   peerDeviceId: string,
@@ -205,7 +209,7 @@ export async function recordPeerDelivery(
 
   await database.withTransactionAsync(async () => {
     const updated = await database.runAsync(
-      "UPDATE relay_queue SET hop_count = hop_count + 1, attempts = attempts + 1, last_attempt_at_ms = ?, next_attempt_at_ms = ? WHERE event_id = ? AND hop_count < max_hops AND EXISTS (SELECT 1 FROM events WHERE events.event_id = relay_queue.event_id) AND NOT EXISTS (SELECT 1 FROM peer_sync_history WHERE peer_sync_history.event_id = relay_queue.event_id AND peer_sync_history.peer_device_id = ?)",
+      "UPDATE relay_queue SET attempts = attempts + 1, last_attempt_at_ms = ?, next_attempt_at_ms = ? WHERE event_id = ? AND hop_count < max_hops AND NOT EXISTS (SELECT 1 FROM peer_sync_history WHERE peer_sync_history.event_id = relay_queue.event_id AND peer_sync_history.peer_device_id = ?)",
       deliveredAtEpochMs,
       deliveredAtEpochMs,
       eventId,
