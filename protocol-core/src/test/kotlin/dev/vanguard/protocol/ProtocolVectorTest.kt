@@ -25,6 +25,6 @@ class ProtocolVectorTest {
         )
 
         assertEquals(fixture.getString("unsignedCanonicalJson"), canonical)
-        assertEquals(fixture.getString("eventId"), Hashing.sha256Url(canonical))
+        assertEquals(fixture.getString("eventId"), Hashing.sha256Url(canonical.toByteArray(StandardCharsets.UTF_8)))
     }
 }
