@@ -1,46 +1,57 @@
 # Vanguard
 
-Local-first, peer-to-peer mesh identity and communication for campus environments with unreliable or unavailable internet.
+Vanguard is a local-first, peer-to-peer identity and communication system for campus environments where mobile internet is unreliable or unavailable.
 
-## Current milestones
+The product goal is store-carry-forward communication: nearby devices exchange signed events locally, retain them safely, and synchronize with the authoritative backend when connectivity returns.
 
-### Protocol core
-A transport-independent Kotlin/JVM core defines immutable signed events, verification, event IDs, duplicate-safe storage interfaces, and a relay queue abstraction.
+## Application stack
 
-### Android storage foundation
-The `:android-runtime` library adds a Room-backed event store and durable store-carry-forward relay queue. It is deliberately separate from the protocol module.
+- React Native + TypeScript on Expo Development Builds.
+- Expo SDK 58 / React Native 0.88 / React 19.3.
+- Expo SQLite with SQLCipher for encrypted local event storage.
+- Expo SecureStore for the SQLCipher database key.
+- Native Android key custody and Google Nearby Connections behind application interfaces.
+- Supabase Postgres and Edge Functions as the authoritative synchronization and policy boundary.
 
-Included Android storage behavior:
-- Persist the complete author-signed event envelope without rewriting its contents.
-- Atomically insert a verified event and its relay queue entry.
-- Deduplicate events by immutable event ID.
-- Read bounded relay batches and acknowledge or defer individual events.
-- Persist retry count, next-attempt time, and the last bounded error string.
+## Repository structure
 
-**Important:** callers must verify an incoming event with `EventProtocol` before passing it to `RoomEventRepository.storeVerifiedAndQueue`. The storage layer does not authenticate users, verify signatures, establish campus membership, or determine revocation status.
+- src/protocol — TypeScript transport-envelope validation and relay policy. Kotlin remains the protocol v1 reference until cross-language vectors prove parity.
+- src/storage — SQLCipher database bootstrap and verified-event/outbox repository.
+- src/mesh — transport interface; native Android transport is a separate implementation milestone.
+- protocol-core — existing Kotlin/JVM protocol reference and tests.
+- android-runtime — existing Room storage foundation, retained during the migration for comparison and parity testing.
+- protocol — protocol contract and roadmap.
+- docs/ARCHITECTURE_DECISIONS.md — accepted engineering decisions and explicit security boundaries.
 
-## Modules
+## Requirements
 
-- `:protocol-core` — transport-independent protocol v1, JVM reference Ed25519 signer/verifier, event validation and in-memory adapters.
-- `:android-runtime` — Android library with Room persistence and a durable relay queue.
+- Node.js 22.13 or newer.
+- JDK 17 and Android SDK for the retained Kotlin/Android modules.
+- A physical Android device for Nearby Connections, permissions, radio-state, background execution, and Keystore validation.
 
-## Build
-
-Requirements: JDK 17, Gradle 8.10.2, and Android SDK Platform 35 for the Android module.
+## Commands
 
 ```bash
-gradle test
-gradle :android-runtime:assembleDebug
+npm install
+npx expo install --fix
+npm run typecheck
+npm test
+npm run doctor
+npm run android
 ```
 
-## Not implemented yet
+The app requires a development build. Expo Go is not sufficient for custom native functionality.
 
-Android Keystore-backed signing, a production Android key provider, Android application/UI shell, BLE/Wi-Fi Direct transport, authenticated peer sessions, enrollment and revocation, trust-snapshot freshness, Supabase synchronization, and PlugScore integration are still future work.
+## Security status
 
-## Security boundaries
+The SQLCipher database is encrypted at rest using a random key held by SecureStore. The private event-signing key is not implemented in the JavaScript layer. The event repository fails closed unless a cryptographic verifier is supplied.
 
-A valid signature proves control of a private key, not a student's civil identity or campus membership. Offline revocation knowledge is necessarily stale; the application must expose the age of its last trusted revocation snapshot. Offline marketplace scores must be labelled provisional until server validation.
+A valid signature proves control of a key, not real-world identity or campus enrollment. Passkeys are reserved for account authentication; they are not treated as general-purpose offline event-signing keys. Relay metadata is mutable and is never included in the author's signed envelope. Offline vouches remain provisional until the backend validates them.
 
-The JVM key implementation is for protocol development and tests. The Android storage module does not yet provide production key custody. The Room database is not yet protected with application-level database encryption; treat local event payloads as sensitive and do not use real private messages or identity records in this prototype. Android app sandboxing and device encryption are not a substitute for a reviewed at-rest encryption design. Do not use this prototype for payments, emergency services, or high-value authorization.
+## Not yet production-ready
 
-See [protocol/PROTOCOL.md](protocol/PROTOCOL.md) for the wire contract and [protocol/ROADMAP.md](protocol/ROADMAP.md) for the next steps.
+Native Android Keystore signing, the Android Nearby Connections implementation, enrollment and key revocation, authenticated/encrypted peer sessions, Supabase ingestion and per-event acknowledgements, push notifications, authoritative PlugScore policy, and real-device acceptance tests remain to be implemented.
+
+Do not use this foundation for payments, emergency services, or high-value authorization.
+
+See protocol/PROTOCOL.md, protocol/ROADMAP.md, and docs/ARCHITECTURE_DECISIONS.md.
