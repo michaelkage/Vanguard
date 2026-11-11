@@ -66,7 +66,7 @@ function mapConnectionRequest(request: ConnectionRequest): NearbyConnectionReque
   };
 }
 
-function mapPayload(payload: NearbyPayload): { deviceId: string; bytes: Uint8Array } {
+function mapPayload(payload: NearbyPayload): { deviceId: string; payload: Uint8Array } {
   return {
     deviceId: payload.endpointId,
     payload: decodeBytesBase64Url(payload.payloadBase64Url)
