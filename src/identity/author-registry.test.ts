@@ -140,6 +140,46 @@ describe("CampusAuthorRegistry", () => {
   });
 
 
+
+  it("invalidates an older in-memory snapshot when another registry installs a newer one", async () => {
+    const memory = createStore();
+    const first = createRegistry(memory.store).registry;
+    const second = createRegistry(memory.store).registry;
+
+    await first.installSnapshot(makeSnapshot());
+    expect(await first.isTrustedAuthor(activeKey, 2_000)).toBe(true);
+
+    await second.installSnapshot(makeSnapshot({
+      sequence: 2,
+      issuedAtEpochMs: 1_500,
+      expiresAtEpochMs: 100_000,
+      authors: [{ publicKey: activeKey, status: "revoked" }]
+    }));
+
+    await expect(first.installSnapshot(makeSnapshot())).rejects.toThrow("rollback rejected");
+    expect(await first.isTrustedAuthor(activeKey, 2_000)).toBe(false);
+  });
+
+  it("fails closed on same-sequence equivocation until a newer snapshot arrives", async () => {
+    const memory = createStore();
+    const registry = createRegistry(memory.store).registry;
+
+    await registry.installSnapshot(makeSnapshot());
+    expect(await registry.isTrustedAuthor(activeKey, 2_000)).toBe(true);
+
+    await expect(registry.installSnapshot(makeSnapshot({
+      authors: [{ publicKey: activeKey, status: "revoked" }]
+    }))).rejects.toThrow("equivocation rejected");
+    expect(await registry.isTrustedAuthor(activeKey, 2_000)).toBe(false);
+
+    await registry.installSnapshot(makeSnapshot({
+      sequence: 2,
+      issuedAtEpochMs: 1_500,
+      expiresAtEpochMs: 100_000
+    }));
+    expect(await registry.isTrustedAuthor(activeKey, 2_000)).toBe(true);
+  });
+
   it("does not let callers mutate a snapshot after it has been verified", async () => {
     const memory = createStore();
     const { registry } = createRegistry(memory.store);
