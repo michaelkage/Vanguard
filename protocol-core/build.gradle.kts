@@ -6,6 +6,12 @@ kotlin {
     jvmToolchain(17)
 }
 
+sourceSets {
+    test {
+        resources.srcDir(rootProject.file("protocol/test-vectors"))
+    }
+}
+
 dependencies {
     testImplementation(kotlin("test-junit5"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
