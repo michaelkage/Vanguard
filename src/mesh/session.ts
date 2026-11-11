@@ -3,7 +3,6 @@ import {
   attachVerifiedEventIngress,
   type AuthorTrustPolicy,
   type IngressRejectionReason,
-  type RelayPacket,
   type VerifiedIngressOptions
 } from "./event-ingress";
 import type {
@@ -220,8 +219,13 @@ export class NearbyMeshSession {
   }
 
   private async teardown(): Promise<void> {
-    this.detachIngress?.();
+    const detachIngress = this.detachIngress;
     this.detachIngress = undefined;
+    try {
+      detachIngress?.();
+    } catch {
+      // Continue cleanup even if a native event subscription fails to detach.
+    }
     for (const detach of this.detachListeners.splice(0).reverse()) {
       try {
         detach();
