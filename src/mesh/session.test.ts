@@ -5,7 +5,7 @@ import type {
   NearbyTransferUpdate,
   NearbyTransport
 } from "./transport";
-import { NearbyMeshSession } from "./session";
+import { NearbyMeshSession, type MeshSessionCallbacks } from "./session";
 
 function createTransportHarness(overrides: Partial<NearbyTransport> = {}) {
   const peerListeners = new Set<(peer: NearbyPeer) => void>();
@@ -25,27 +25,27 @@ function createTransportHarness(overrides: Partial<NearbyTransport> = {}) {
     send: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
-    addPeerListener: vi.fn(listener => {
+    addPeerListener: vi.fn((listener: (peer: NearbyPeer) => void) => {
       peerListeners.add(listener);
       return () => peerListeners.delete(listener);
     }),
-    addPeerLostListener: vi.fn(listener => {
+    addPeerLostListener: vi.fn((listener: (deviceId: string) => void) => {
       peerLostListeners.add(listener);
       return () => peerLostListeners.delete(listener);
     }),
-    addConnectionRequestListener: vi.fn(listener => {
+    addConnectionRequestListener: vi.fn((listener: (request: NearbyConnectionRequest) => void) => {
       requestListeners.add(listener);
       return () => requestListeners.delete(listener);
     }),
-    addPayloadListener: vi.fn(listener => {
+    addPayloadListener: vi.fn((listener: (deviceId: string, payload: Uint8Array) => void) => {
       payloadListeners.add(listener);
       return () => payloadListeners.delete(listener);
     }),
-    addTransferListener: vi.fn(listener => {
+    addTransferListener: vi.fn((listener: (update: NearbyTransferUpdate) => void) => {
       transferListeners.add(listener);
       return () => transferListeners.delete(listener);
     }),
-    addErrorListener: vi.fn(listener => {
+    addErrorListener: vi.fn((listener: (error: { code: string; deviceId?: string }) => void) => {
       errorListeners.add(listener);
       return () => errorListeners.delete(listener);
     }),
@@ -64,7 +64,7 @@ function createTransportHarness(overrides: Partial<NearbyTransport> = {}) {
   };
 }
 
-function createSession(transport: NearbyTransport, callbacks = {}) {
+function createSession(transport: NearbyTransport, callbacks: Partial<MeshSessionCallbacks> = {}) {
   return new NearbyMeshSession({
     transport,
     serviceId: "dev.vanguard.mesh",
