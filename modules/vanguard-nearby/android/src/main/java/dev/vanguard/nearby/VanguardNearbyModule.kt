@@ -285,16 +285,12 @@ class VanguardNearbyModule : Module() {
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
       }
 
-      if (Build.VERSION.SDK_INT in 29..32) {
+      if (Build.VERSION.SDK_INT in 29..31) {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
       }
 
-      if (Build.VERSION.SDK_INT in 33..36) {
+      if (Build.VERSION.SDK_INT in 32..36) {
         add(Manifest.permission.NEARBY_WIFI_DEVICES)
-      }
-      if (Build.VERSION.SDK_INT >= 37) {
-        add(Manifest.permission.NEARBY_WIFI_DEVICES)
-        add(ACCESS_LOCAL_NETWORK_PERMISSION)
       }
     }
 
@@ -317,6 +313,5 @@ class VanguardNearbyModule : Module() {
 
   companion object {
     private const val MAX_PACKET_BYTES = 24 * 1024
-    private const val ACCESS_LOCAL_NETWORK_PERMISSION = "android.permission.ACCESS_LOCAL_NETWORK"
   }
 }
