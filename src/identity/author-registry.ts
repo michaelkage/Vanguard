@@ -172,8 +172,10 @@ export class CampusAuthorRegistry {
   private installQueue: Promise<void> = Promise.resolve();
   private readonly nowEpochMs: () => number;
   private readonly allowedClockSkewMs: number;
+  private readonly options: CampusAuthorRegistryOptions;
 
-  constructor(private readonly options: CampusAuthorRegistryOptions) {
+  constructor(options: CampusAuthorRegistryOptions) {
+    this.options = Object.freeze({ ...options });
     if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(options.campusId)) {
       throw new TypeError("Invalid campus ID");
     }
@@ -235,30 +237,31 @@ export class CampusAuthorRegistry {
 
   private async installSnapshotInternal(candidate: unknown): Promise<void> {
     assertAuthorRegistrySnapshot(candidate);
-    if (candidate.campusId !== this.options.campusId) {
+    const snapshot = freezeSnapshot(candidate);
+    if (snapshot.campusId !== this.options.campusId) {
       throw new Error("Author registry snapshot belongs to a different campus");
     }
 
     const now = this.nowEpochMs();
-    if (!this.isFresh(candidate, now)) {
+    if (!this.isFresh(snapshot, now)) {
       throw new Error("Author registry snapshot is expired, stale, or from the future");
     }
 
     const verified = await this.options.signatureVerifier.verify(
       this.options.pinnedServerPublicKey,
-      canonicalAuthorRegistryMessage(candidate),
-      candidate.signature
+      canonicalAuthorRegistryMessage(snapshot),
+      snapshot.signature
     );
     if (!verified) throw new Error("Author registry server signature verification failed");
 
-    const result = await this.options.store.saveIfNewer(candidate, now);
+    const result = await this.options.store.saveIfNewer(snapshot, now);
     if (result === "stale") throw new Error("Author registry snapshot rollback rejected");
     if (result === "conflict") {
       throw new Error("Author registry snapshot sequence equivocation rejected");
     }
 
     this.snapshotGeneration += 1;
-    this.cachedSnapshot = candidate;
+    this.cachedSnapshot = snapshot;
     this.snapshotLoad = undefined;
   }
 
@@ -284,14 +287,15 @@ export class CampusAuthorRegistry {
       const candidate = await this.options.store.loadLatest(this.options.campusId);
       if (candidate === null) return null;
       assertAuthorRegistrySnapshot(candidate);
-      if (candidate.campusId !== this.options.campusId) return null;
+      const snapshot = freezeSnapshot(candidate);
+      if (snapshot.campusId !== this.options.campusId) return null;
 
       const verified = await this.options.signatureVerifier.verify(
         this.options.pinnedServerPublicKey,
-        canonicalAuthorRegistryMessage(candidate),
-        candidate.signature
+        canonicalAuthorRegistryMessage(snapshot),
+        snapshot.signature
       );
-      return verified ? candidate : null;
+      return verified ? snapshot : null;
     } catch {
       // Corrupt, malformed, or unverifiable local state is never trusted.
       return null;
