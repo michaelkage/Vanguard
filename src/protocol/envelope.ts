@@ -13,6 +13,27 @@ export interface SignedEventEnvelope {
   readonly signature: string;
 }
 
+function utf8ByteLength(value: string): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x7f) bytes += 1;
+    else if (code <= 0x7ff) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length) {
+      const next = value.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else {
+        bytes += 3;
+      }
+    } else {
+      bytes += 3;
+    }
+  }
+  return bytes;
+}
+
 /**
  * Validates the transport representation only. It does not verify signatures,
  * establish campus membership, or prove that payload JSON is canonical.
@@ -23,6 +44,24 @@ export function assertEnvelopeShape(value: unknown): asserts value is SignedEven
   }
 
   const candidate = value as Record<string, unknown>;
+  const expectedKeys = [
+    "authorPublicKey",
+    "createdAtEpochMs",
+    "expiresAtEpochMs",
+    "id",
+    "payloadCanonicalJson",
+    "signature",
+    "type",
+    "version"
+  ];
+  const actualKeys = Object.keys(candidate).sort();
+  if (
+    actualKeys.length !== expectedKeys.length ||
+    actualKeys.some((key, index) => key !== expectedKeys[index])
+  ) {
+    throw new TypeError("Event envelope contains missing or unexpected fields");
+  }
+
   if (candidate.version !== PROTOCOL_VERSION) {
     throw new TypeError("Unsupported protocol version");
   }
@@ -57,7 +96,7 @@ export function assertEnvelopeShape(value: unknown): asserts value is SignedEven
   }
   if (
     typeof candidate.payloadCanonicalJson !== "string" ||
-    new TextEncoder().encode(candidate.payloadCanonicalJson).byteLength > MAX_PAYLOAD_BYTES
+    utf8ByteLength(candidate.payloadCanonicalJson) > MAX_PAYLOAD_BYTES
   ) {
     throw new TypeError("Invalid or oversized event payload");
   }
@@ -76,8 +115,7 @@ export function assertEnvelopeShape(value: unknown): asserts value is SignedEven
     throw new TypeError("Invalid signature encoding");
   }
 
-  const envelopeBytes = new TextEncoder().encode(JSON.stringify(candidate)).byteLength;
-  if (envelopeBytes > MAX_ENVELOPE_BYTES) {
+  if (utf8ByteLength(JSON.stringify(candidate)) > MAX_ENVELOPE_BYTES) {
     throw new TypeError("Event envelope exceeds the transport size limit");
   }
 }
