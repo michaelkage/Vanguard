@@ -39,9 +39,17 @@ A missing wrapping key with an existing identity record is treated as an unrecov
 
 The event repository accepts an injected SignatureVerifier and refuses to persist an event until verification succeeds. A production verifier must be backed by the native protocol/key layer. A missing verifier is an integration gap, not a reason to accept unverified events.
 
-## Decision 7 — Nearby transport boundary
+## Decision 7 — Android Nearby transport
 
-The application depends on a transport interface. Android will use Google Nearby Connections through a native module after a real-device compatibility spike. Do not make the application depend directly on an immature React Native wrapper. A transport implementation must handle permission denial, radio disabled state, disconnects, payload limits, and process lifecycle.
+Android uses Google Play services Nearby Connections 19.5.1 through a local Expo Kotlin module and a TypeScript transport adapter. The transport uses `Strategy.P2P_CLUSTER` for many-to-many campus discovery and exchange.
+
+The module supports advertising, discovery, explicit incoming connection acceptance/rejection, outgoing connection requests, byte-payload send/receive, transfer status events, and disconnect/stop. Vanguard limits each transport packet to 24 KiB, below the protocol envelope's 24 KiB maximum; application framing must still ensure the serialized envelope fits the limit.
+
+The module checks runtime permissions for Bluetooth scanning/advertising/connection, location on older Android versions, and Nearby Wi-Fi devices on Android 12L and newer. Permission denial is surfaced; the transport does not silently bypass it.
+
+Nearby Connections encrypts the transport link and exposes its short authentication digits. Neither fact proves that the remote endpoint controls a campus-enrolled Vanguard identity key. The application must verify the Vanguard signature/key registry before storing any received event. The authentication digits are exposed so a future trust UI can let users compare them.
+
+This implementation is Android-only and requires compatible Google Play services. iOS will use a separate transport adapter; cross-platform Android-to-iOS interoperation is not claimed. The code still requires Android compilation and physical-device validation.
 
 ## Decision 8 — Sync semantics
 
