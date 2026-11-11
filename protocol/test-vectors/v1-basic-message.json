@@ -1,0 +1,12 @@
+{
+  "name": "v1-basic-message",
+  "version": 1,
+  "type": "message.created",
+  "authorPublicKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "createdAtEpochMs": 1700000000000,
+  "expiresAtEpochMs": null,
+  "payloadCanonicalJson": "{\"body\":\"hello\",\"to\":\"recipient\"}",
+  "unsignedCanonicalJson": "{\"version\":1,\"type\":\"message.created\",\"authorPublicKey\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"createdAtEpochMs\":1700000000000,\"expiresAtEpochMs\":null,\"payload\":{\"body\":\"hello\",\"to\":\"recipient\"}}",
+  "eventId": "4A4ijpkPbkIhJtoaGOT2ZPzW0mF6w_ZGNEG7wV58nAE",
+  "notes": "The public-key string is a codec fixture, not a cryptographically valid identity key. This vector tests canonical bytes and SHA-256 event-ID parity only."
+}
