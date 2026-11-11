@@ -2,6 +2,15 @@ import type { SignedEventEnvelope } from "../protocol/envelope";
 import { assertEnvelopeShape } from "../protocol/envelope";
 import { getDatabase } from "./database";
 
+export const MAX_LOGICAL_EVENT_STORE_BYTES = 50 * 1024 * 1024;
+
+export class StorageQuotaExceededError extends Error {
+  constructor() {
+    super("Vanguard's local event store has reached its 50 MiB logical limit");
+    this.name = "StorageQuotaExceededError";
+  }
+}
+
 export interface SignatureVerifier {
   verify(envelope: SignedEventEnvelope): Promise<boolean>;
 }
@@ -57,21 +66,61 @@ export async function storeVerifiedEvent(
   if (!(await verifier.verify(envelope))) throw new EventVerificationError();
 
   const database = await getDatabase();
+  const serializedEnvelope = JSON.stringify(envelope);
   let inserted = false;
+  let quotaExceeded = false;
 
   await database.withTransactionAsync(async () => {
-    const result = await database.runAsync(
-      "INSERT OR IGNORE INTO events (event_id, envelope_json, author_public_key, created_at_ms, expires_at_ms, received_at_ms, sync_state) VALUES (?, ?, ?, ?, ?, ?, 'pending')",
+    const existing = await database.getFirstAsync<{ event_id: string }>(
+      "SELECT event_id FROM events WHERE event_id = ?",
+      envelope.id
+    );
+    if (existing) return;
+
+    await database.runAsync(
+      "DELETE FROM events WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?",
+      options.nowEpochMs
+    );
+
+    const sizeRow = await database.getFirstAsync<{ bytes: number }>(
+      "SELECT length(CAST(? AS BLOB)) AS bytes",
+      serializedEnvelope
+    );
+    const incomingBytes = sizeRow?.bytes ?? 0;
+    const totalRow = await database.getFirstAsync<{ bytes: number }>(
+      "SELECT COALESCE(SUM(length(CAST(envelope_json AS BLOB))), 0) AS bytes FROM events"
+    );
+    let storedBytes = totalRow?.bytes ?? 0;
+
+    if (storedBytes + incomingBytes > MAX_LOGICAL_EVENT_STORE_BYTES) {
+      const confirmedRows = await database.getAllAsync<{ event_id: string; bytes: number }>(
+        "SELECT event_id, length(CAST(envelope_json AS BLOB)) AS bytes FROM events WHERE sync_state = 'confirmed' ORDER BY received_at_ms ASC"
+      );
+
+      for (const row of confirmedRows) {
+        if (storedBytes + incomingBytes <= MAX_LOGICAL_EVENT_STORE_BYTES) break;
+        await database.runAsync("DELETE FROM events WHERE event_id = ?", row.event_id);
+        storedBytes -= row.bytes;
+      }
+    }
+
+    if (storedBytes + incomingBytes > MAX_LOGICAL_EVENT_STORE_BYTES) {
+      quotaExceeded = true;
+      return;
+    }
+
+    await database.runAsync(
+      "INSERT INTO events (event_id, envelope_json, author_public_key, created_at_ms, expires_at_ms, received_at_ms, sync_state) VALUES (?, ?, ?, ?, ?, ?, 'pending')",
       envelope.id,
-      JSON.stringify(envelope),
+      serializedEnvelope,
       envelope.authorPublicKey,
       envelope.createdAtEpochMs,
       envelope.expiresAtEpochMs,
       options.nowEpochMs
     );
-    inserted = result.changes > 0;
+    inserted = true;
 
-    if (inserted && receivedHopCount < maxHops) {
+    if (receivedHopCount < maxHops) {
       await database.runAsync(
         "INSERT INTO relay_queue (event_id, hop_count, max_hops, attempts, next_attempt_at_ms, queued_at_ms) VALUES (?, ?, ?, 0, ?, ?)",
         envelope.id,
@@ -82,7 +131,7 @@ export async function storeVerifiedEvent(
       );
     }
 
-    if (inserted && options.receivedFromPeerId !== undefined) {
+    if (options.receivedFromPeerId !== undefined) {
       await database.runAsync(
         "INSERT INTO peer_sync_history (peer_device_id, event_id, delivered_at_ms) VALUES (?, ?, ?)",
         options.receivedFromPeerId,
@@ -91,6 +140,8 @@ export async function storeVerifiedEvent(
       );
     }
   });
+
+  if (quotaExceeded) throw new StorageQuotaExceededError();
 
   return inserted;
 }
