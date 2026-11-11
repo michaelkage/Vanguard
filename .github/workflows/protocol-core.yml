@@ -63,8 +63,7 @@ jobs:
           # still requests it and fails before the build starts.
           packages: platform-tools
 
-      - name: Install Android SDK 37
-        run: # Android API 37 uses the versioned package ID android-37.0.
+      - name: Install Android SDK 37.0
         run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
       - name: Install JavaScript dependencies
