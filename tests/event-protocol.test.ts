@@ -1,25 +1,10 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import vector from "../protocol/test-vectors/v1-basic-message.json";
 import { canonicalizeJson } from "../src/protocol/canonical-json";
 import {
   canonicalUnsignedEvent,
   eventIdForCanonicalMessage
 } from "../src/protocol/event-protocol";
-
-interface ProtocolVector {
-  readonly version: 1;
-  readonly type: string;
-  readonly authorPublicKey: string;
-  readonly createdAtEpochMs: number;
-  readonly expiresAtEpochMs: number | null;
-  readonly payloadCanonicalJson: string;
-  readonly unsignedCanonicalJson: string;
-  readonly eventId: string;
-}
-
-const vector = JSON.parse(
-  readFileSync(new URL("../protocol/test-vectors/v1-basic-message.json", import.meta.url), "utf8")
-) as ProtocolVector;
 
 describe("canonicalizeJson", () => {
   it("sorts object keys recursively and preserves array order", () => {
