@@ -300,7 +300,7 @@ export class CampusAuthorRegistry {
 
   private isFresh(snapshot: AuthorRegistrySnapshot, nowEpochMs: number): boolean {
     if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs < 0) return false;
-    if (snapshot.issuedAtEpochMs > nowEpochMs + this.allowedClockSkewMs) return false;
+    if (\n      snapshot.issuedAtEpochMs > nowEpochMs &&\n      snapshot.issuedAtEpochMs - nowEpochMs > this.allowedClockSkewMs\n    ) return false;
     if (snapshot.expiresAtEpochMs <= nowEpochMs) return false;
     return nowEpochMs - snapshot.issuedAtEpochMs <= this.options.maxSnapshotAgeMs;
   }
