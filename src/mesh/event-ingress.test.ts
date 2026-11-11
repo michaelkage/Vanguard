@@ -142,8 +142,7 @@ describe("verified event ingress", () => {
       onRejected
     });
     harness.emit("peer-a", encodeRelayPacket(envelope, {
-      hopCount: 1,
-      maxHops: 5
+      hopCount: 1
     }));
 
     await vi.waitFor(() => {
