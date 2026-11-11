@@ -37,7 +37,7 @@ function createStore(initial: AuthorRegistrySnapshot | null = null) {
     loadLatest: vi.fn(async campusId =>
       latest?.campusId === campusId ? latest : null
     ),
-    saveIfNewer: vi.fn(async (snapshot) => {
+    saveIfNewer: vi.fn(async (snapshot: AuthorRegistrySnapshot, _installedAtEpochMs: number) => {
       if (latest === null) {
         latest = snapshot;
         return "installed" as const;
