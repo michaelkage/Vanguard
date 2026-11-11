@@ -21,7 +21,7 @@
 ## Milestone 3 — Expo application foundation
 - [x] Create Expo SDK 58 / React Native 0.88 / TypeScript application
 - [x] Add Expo Development Build configuration
-- [x] Enable SQLCipher for Expo SQLite
+- [x] Enable SQLCipher for Expo SQLite and fail closed if SQLCipher is missing
 - [x] Protect the random database key with Expo SecureStore
 - [x] Add strict v1 event-envelope shape validation
 - [x] Add relay policy, hop-depth metadata, and peer deduplication
@@ -32,8 +32,11 @@
 - [ ] Add integration tests against a real SQLCipher-enabled development build
 
 ## Milestone 4 — Android native identity and transport
-- [ ] Implement native Android device-key provider without exporting private keys to JavaScript
-- [ ] Validate Ed25519 provider availability on supported Android versions; define an explicit protocol migration if compatibility requires another algorithm
+- [x] Add local Expo native module for Ed25519 identity creation, signing, verification, and deletion
+- [x] Keep private-key material out of JavaScript and encrypt it at rest with an Android Keystore AES-GCM wrapping key
+- [ ] Build and validate the Expo Android application with the native module
+- [ ] Add biometric authorization for key use
+- [ ] Verify Kotlin/TypeScript/native signature bytes against shared protocol test vectors
 - [ ] Implement Google Nearby Connections behind the TypeScript transport interface
 - [ ] Handle permission denial, disabled radios, reconnects, lifecycle, and bounded payloads
 - [ ] Validate two physical Android devices and Android-to-iOS interoperability policy
