@@ -73,11 +73,13 @@ export class NearbyMeshSession {
   }
 
   start(): Promise<void> {
-    if (this.currentState === "running") return Promise.resolve();
-    if (this.startOperation) return this.startOperation;
+    // Shutdown owns the lifecycle until teardown has completed. A caller that
+    // asks to start during shutdown must wait, then initiate a fresh session.
     if (this.stopOperation) {
       return this.stopOperation.then(() => this.start());
     }
+    if (this.currentState === "running") return Promise.resolve();
+    if (this.startOperation) return this.startOperation;
 
     this.currentState = "starting";
     this.startOperation = this.startInternal().finally(() => {
@@ -115,7 +117,9 @@ export class NearbyMeshSession {
         (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected"
       );
       if (failure) throw failure.reason;
-      this.currentState = "running";
+      // stop() may have been requested while the radio operations were
+      // pending. Never resurrect a session that is already shutting down.
+      if (this.currentState === "starting") this.currentState = "running";
     } catch (error) {
       try {
         await this.teardown();
@@ -207,6 +211,9 @@ export class NearbyMeshSession {
           // startInternal already performs rollback before rejecting.
         }
       }
+      // A failed startup has already rolled back its listeners and transport.
+      // Avoid issuing a second native stop when stop() raced that failure.
+      if (this.currentState === "stopped") return;
       try {
         await this.teardown();
       } finally {
