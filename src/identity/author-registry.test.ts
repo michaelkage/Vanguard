@@ -139,6 +139,20 @@ describe("CampusAuthorRegistry", () => {
     expect(memory.latest).toBeNull();
   });
 
+
+  it("does not let callers mutate a snapshot after it has been verified", async () => {
+    const memory = createStore();
+    const { registry } = createRegistry(memory.store);
+    const submitted = makeSnapshot();
+
+    await registry.installSnapshot(submitted);
+    (submitted.authors as { publicKey: string; status: "active" | "suspended" | "revoked" }[])[0]!.status =
+      "revoked";
+
+    expect(await registry.isTrustedAuthor(activeKey, 2_000)).toBe(true);
+    expect(memory.latest?.authors[0]?.status).toBe("active");
+  });
+
   it("rejects sequence rollback and same-sequence equivocation", async () => {
     const memory = createStore();
     const { registry } = createRegistry(memory.store);
