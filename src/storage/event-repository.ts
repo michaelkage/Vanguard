@@ -23,7 +23,7 @@ export class EventVerificationError extends Error {
 export async function storeVerifiedEvent(
   candidate: unknown,
   verifier: SignatureVerifier,
-  options: { readonly nowEpochMs: number; readonly maxHops?: number }
+  options: { readonly nowEpochMs: number; readonly maxHops?: number; readonly receivedHopCount?: number }
 ): Promise<boolean> {
   assertEnvelopeShape(candidate);
   const envelope = candidate;
@@ -36,6 +36,11 @@ export async function storeVerifiedEvent(
   const maxHops = options.maxHops ?? 5;
   if (!Number.isSafeInteger(maxHops) || maxHops < 1 || maxHops > 8) {
     throw new RangeError("maxHops must be an integer between 1 and 8");
+  }
+
+  const receivedHopCount = options.receivedHopCount ?? 0;
+  if (!Number.isSafeInteger(receivedHopCount) || receivedHopCount < 0 || receivedHopCount > maxHops) {
+    throw new RangeError("receivedHopCount must be between zero and maxHops");
   }
 
   const database = await getDatabase();
@@ -54,13 +59,16 @@ export async function storeVerifiedEvent(
     inserted = result.changes > 0;
 
     if (inserted) {
-      await database.runAsync(
-        "INSERT INTO relay_queue (event_id, hop_count, max_hops, attempts, next_attempt_at_ms, queued_at_ms) VALUES (?, 0, ?, 0, ?, ?)",
-        envelope.id,
-        maxHops,
-        options.nowEpochMs,
-        options.nowEpochMs
-      );
+      if (receivedHopCount < maxHops) {
+        await database.runAsync(
+          "INSERT INTO relay_queue (event_id, hop_count, max_hops, attempts, next_attempt_at_ms, queued_at_ms) VALUES (?, ?, ?, 0, ?, ?)",
+          envelope.id,
+          receivedHopCount,
+          maxHops,
+          options.nowEpochMs,
+          options.nowEpochMs
+        );
+      }
     }
   });
 
@@ -82,7 +90,7 @@ export async function getRelayBatchForPeer(
     hop_count: number;
     max_hops: number;
   }>(
-    "SELECT events.envelope_json, relay_queue.hop_count, relay_queue.max_hops FROM relay_queue INNER JOIN events ON events.event_id = relay_queue.event_id WHERE relay_queue.next_attempt_at_ms <= ? AND relay_queue.hop_count < relay_queue.max_hops AND (events.expires_at_ms IS NULL OR events.expires_at_ms > ?) AND NOT EXISTS (SELECT 1 FROM peer_sync_history WHERE peer_sync_history.event_id = events.event_id AND peer_sync_history.peer_device_id = ?) ORDER BY relay_queue.queued_at_ms ASC LIMIT ?",
+    "SELECT events.envelope_json, relay_queue.hop_count + 1 AS hop_count, relay_queue.max_hops FROM relay_queue INNER JOIN events ON events.event_id = relay_queue.event_id WHERE relay_queue.next_attempt_at_ms <= ? AND relay_queue.hop_count < relay_queue.max_hops AND (events.expires_at_ms IS NULL OR events.expires_at_ms > ?) AND NOT EXISTS (SELECT 1 FROM peer_sync_history WHERE peer_sync_history.event_id = events.event_id AND peer_sync_history.peer_device_id = ?) ORDER BY relay_queue.queued_at_ms ASC LIMIT ?",
     nowEpochMs,
     nowEpochMs,
     peerDeviceId,
@@ -106,7 +114,7 @@ export async function recordPeerDelivery(
 
   await database.withTransactionAsync(async () => {
     const inserted = await database.runAsync(
-      "INSERT OR IGNORE INTO peer_sync_history (peer_device_id, event_id, delivered_at_ms) SELECT ?, event_id, ? FROM events WHERE event_id = ?",
+      "INSERT OR IGNORE INTO peer_sync_history (peer_device_id, event_id, delivered_at_ms) SELECT ?, events.event_id, ? FROM events INNER JOIN relay_queue ON relay_queue.event_id = events.event_id WHERE events.event_id = ? AND relay_queue.hop_count < relay_queue.max_hops",
       peerDeviceId,
       deliveredAtEpochMs,
       eventId
@@ -114,7 +122,7 @@ export async function recordPeerDelivery(
     if (inserted.changes === 0) return;
 
     const updated = await database.runAsync(
-      "UPDATE relay_queue SET hop_count = hop_count + 1, attempts = attempts + 1, last_attempt_at_ms = ?, next_attempt_at_ms = ? WHERE event_id = ? AND hop_count < max_hops",
+      "UPDATE relay_queue SET attempts = attempts + 1, last_attempt_at_ms = ?, next_attempt_at_ms = ? WHERE event_id = ?",
       deliveredAtEpochMs,
       deliveredAtEpochMs,
       eventId
