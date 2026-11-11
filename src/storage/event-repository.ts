@@ -17,7 +17,7 @@ export interface SignatureVerifier {
 
 export interface RelayBatchItem {
   readonly envelope: SignedEventEnvelope;
-  /** Hop count to place in the outgoing relay metadata. */
+  /** Next hop depth to include in mutable relay metadata. */
   readonly hopCount: number;
   readonly maxHops: number;
 }
@@ -152,7 +152,6 @@ export async function storeVerifiedEvent(
   });
 
   if (quotaExceeded) throw new StorageQuotaExceededError();
-
   return inserted;
 }
 
@@ -161,6 +160,10 @@ export async function getRelayBatchForPeer(
   nowEpochMs: number,
   limit = 32
 ): Promise<RelayBatchItem[]> {
+  if (peerDeviceId.length === 0) throw new TypeError("peerDeviceId cannot be empty");
+  if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs < 0) {
+    throw new RangeError("nowEpochMs must be a non-negative safe integer");
+  }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     throw new RangeError("Relay batch limit must be between 1 and 100");
   }
@@ -185,37 +188,49 @@ export async function getRelayBatchForPeer(
   }));
 }
 
-/** Records successful delivery to a peer without changing the event's path depth. */
+/** Records a successful peer transfer and advances the local relay depth. */
 export async function recordPeerDelivery(
   eventId: string,
   peerDeviceId: string,
   deliveredAtEpochMs: number
 ): Promise<boolean> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(eventId)) throw new TypeError("Invalid event ID");
+  if (peerDeviceId.length === 0) throw new TypeError("peerDeviceId cannot be empty");
+  if (!Number.isSafeInteger(deliveredAtEpochMs) || deliveredAtEpochMs < 0) {
+    throw new RangeError("deliveredAtEpochMs must be a non-negative safe integer");
+  }
+
   const database = await getDatabase();
   let recorded = false;
 
   await database.withTransactionAsync(async () => {
-    const inserted = await database.runAsync(
-      "INSERT OR IGNORE INTO peer_sync_history (peer_device_id, event_id, delivered_at_ms) SELECT ?, events.event_id, ? FROM events INNER JOIN relay_queue ON relay_queue.event_id = events.event_id WHERE events.event_id = ? AND relay_queue.hop_count < relay_queue.max_hops",
-      peerDeviceId,
-      deliveredAtEpochMs,
-      eventId
-    );
-    if (inserted.changes === 0) return;
-
     const updated = await database.runAsync(
-      "UPDATE relay_queue SET attempts = attempts + 1, last_attempt_at_ms = ?, next_attempt_at_ms = ? WHERE event_id = ?",
+      "UPDATE relay_queue SET hop_count = hop_count + 1, attempts = attempts + 1, last_attempt_at_ms = ?, next_attempt_at_ms = ? WHERE event_id = ? AND hop_count < max_hops AND EXISTS (SELECT 1 FROM events WHERE events.event_id = relay_queue.event_id) AND NOT EXISTS (SELECT 1 FROM peer_sync_history WHERE peer_sync_history.event_id = relay_queue.event_id AND peer_sync_history.peer_device_id = ?)",
       deliveredAtEpochMs,
       deliveredAtEpochMs,
-      eventId
+      eventId,
+      peerDeviceId
     );
-    recorded = updated.changes > 0;
+    if (updated.changes === 0) return;
+
+    await database.runAsync(
+      "INSERT INTO peer_sync_history (peer_device_id, event_id, delivered_at_ms) VALUES (?, ?, ?)",
+      peerDeviceId,
+      eventId,
+      deliveredAtEpochMs
+    );
+    recorded = true;
   });
 
   return recorded;
 }
 
 export async function deferRelay(eventId: string, nowEpochMs: number): Promise<void> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(eventId)) throw new TypeError("Invalid event ID");
+  if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs < 0) {
+    throw new RangeError("nowEpochMs must be a non-negative safe integer");
+  }
+
   const database = await getDatabase();
   await database.runAsync(
     "UPDATE relay_queue SET attempts = attempts + 1, last_attempt_at_ms = ?, next_attempt_at_ms = ? + MIN(3600000, 1000 * (1 << MIN(attempts, 10))) WHERE event_id = ?",
@@ -229,6 +244,9 @@ export async function getCloudSyncBatch(
   nowEpochMs: number,
   limit = 50
 ): Promise<SignedEventEnvelope[]> {
+  if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs < 0) {
+    throw new RangeError("nowEpochMs must be a non-negative safe integer");
+  }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
     throw new RangeError("Cloud sync batch limit must be between 1 and 200");
   }
@@ -248,10 +266,13 @@ export async function markCloudConfirmed(eventIds: readonly string[]): Promise<v
   if (eventIds.length > 200) {
     throw new RangeError("Cloud acknowledgement batch cannot exceed 200 events");
   }
+  if (eventIds.some(id => !/^[A-Za-z0-9_-]{43}$/.test(id))) {
+    throw new TypeError("Cloud acknowledgement contains an invalid event ID");
+  }
 
   const database = await getDatabase();
   await database.withTransactionAsync(async () => {
-    for (const eventId of eventIds) {
+    for (const eventId of new Set(eventIds)) {
       await database.runAsync(
         "UPDATE events SET sync_state = 'confirmed' WHERE event_id = ?",
         eventId
@@ -261,6 +282,9 @@ export async function markCloudConfirmed(eventIds: readonly string[]): Promise<v
 }
 
 export async function pruneExpiredEvents(nowEpochMs: number): Promise<number> {
+  if (!Number.isSafeInteger(nowEpochMs) || nowEpochMs < 0) {
+    throw new RangeError("nowEpochMs must be a non-negative safe integer");
+  }
   const database = await getDatabase();
   const result = await database.runAsync(
     "DELETE FROM events WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?",
