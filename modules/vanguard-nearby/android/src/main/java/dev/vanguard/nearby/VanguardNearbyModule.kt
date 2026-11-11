@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Base64
-import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.AdvertisingOptions
 import com.google.android.gms.nearby.connection.ConnectionInfo
@@ -23,7 +22,6 @@ import com.google.android.gms.nearby.connection.Strategy
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.tasks.await
-import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 
 class VanguardNearbyModule : Module() {
@@ -31,7 +29,6 @@ class VanguardNearbyModule : Module() {
   private var localEndpointName = "Vanguard device"
   private var advertising = false
   private var discovering = false
-  private var activeServiceId: String? = null
   private val connectedEndpoints = ConcurrentHashMap.newKeySet<String>()
   private val discoveredEndpoints = ConcurrentHashMap<String, String>()
   private val pendingEndpoints = ConcurrentHashMap.newKeySet<String>()
@@ -147,7 +144,8 @@ class VanguardNearbyModule : Module() {
       "onConnectionStateChanged",
       "onPayloadReceived",
       "onPayloadTransferUpdate",
-      "onTransportError"
+      "onTransportError",
+      "onTransportStateChanged"
     )
 
     AsyncFunction("getMissingPermissions") {
@@ -167,7 +165,6 @@ class VanguardNearbyModule : Module() {
         AdvertisingOptions.Builder().setStrategy(Strategy.P2P_CLUSTER).build()
       ).await()
       advertising = true
-      activeServiceId = serviceId
       sendEvent("onTransportStateChanged", mapOf("state" to "advertising"))
       null
     }
@@ -233,7 +230,6 @@ class VanguardNearbyModule : Module() {
       }
       advertising = false
       discovering = false
-      activeServiceId = null
       connectedEndpoints.clear()
       discoveredEndpoints.clear()
       pendingEndpoints.clear()
