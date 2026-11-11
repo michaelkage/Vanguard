@@ -133,7 +133,7 @@ describe("CampusAuthorRegistry", () => {
       registry.installSnapshot(makeSnapshot({ issuedAtEpochMs: 1_000, expiresAtEpochMs: 100_000 }))
     ).rejects.toThrow("expired, stale, or from the future");
     await expect(
-      registry.installSnapshot(makeSnapshot({ issuedAtEpochMs: 30_000, expiresAtEpochMs: 40_000 }))
+      registry.installSnapshot(makeSnapshot({ issuedAtEpochMs: 400_000, expiresAtEpochMs: 500_000 }))
     ).rejects.toThrow("expired, stale, or from the future");
     expect(verify).not.toHaveBeenCalled();
     expect(memory.latest).toBeNull();
