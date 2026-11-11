@@ -58,7 +58,7 @@ class VanguardIdentityModule : Module() {
 }
 
 private class IdentityKeyStore(context: Context) {
-  private val identityFile = File(context.filesDir, IDENTITY_FILE_NAME)
+  private val identityFile = File(context.noBackupFilesDir, IDENTITY_FILE_NAME)
   private val provider = BouncyCastleProvider()
 
   fun getOrCreateIdentity(): Map<String, String> = synchronized(LOCK) {
