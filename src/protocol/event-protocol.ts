@@ -119,6 +119,6 @@ export async function verifySignedEvent(
     event.expiresAtEpochMs,
     event.payloadCanonicalJson
   );
-  if (await sha256Base64Url(canonicalMessage) !== event.id) return false;
+  if (await eventIdForCanonicalMessage(canonicalMessage) !== event.id) return false;
   return signer.verify(event.authorPublicKey, canonicalMessage, event.signature);
 }
