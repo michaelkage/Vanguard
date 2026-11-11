@@ -84,7 +84,12 @@ describe("relay packet framing", () => {
 describe("verified event ingress", () => {
   beforeEach(() => {
     vi.mocked(storeVerifiedEvent).mockReset();
-    vi.mocked(storeVerifiedEvent).mockResolvedValue(true);
+    vi.mocked(storeVerifiedEvent).mockImplementation(async (candidate, verifier) => {
+      if (!(await verifier.verify(candidate as SignedEventEnvelope))) {
+        throw new EventVerificationError();
+      }
+      return true;
+    });
   });
 
   it("requires both signature verification and author trust before storage", async () => {
@@ -108,7 +113,7 @@ describe("verified event ingress", () => {
       expect(storeVerifiedEvent).toHaveBeenCalledOnce();
     });
 
-    const [storedEnvelope, verifier, storageOptions] =
+    const [storedEnvelope, , storageOptions] =
       vi.mocked(storeVerifiedEvent).mock.calls[0]!;
     expect(storedEnvelope).toEqual(envelope);
     expect(storageOptions).toMatchObject({
@@ -117,7 +122,6 @@ describe("verified event ingress", () => {
       maxHops: 5,
       receivedFromPeerId: "peer-a"
     });
-    await expect(verifier.verify(envelope)).resolves.toBe(true);
     expect(signatureVerifier.verify).toHaveBeenCalledWith(envelope);
     expect(authorTrustPolicy.isTrustedAuthor).toHaveBeenCalledWith(
       envelope.authorPublicKey,
@@ -134,13 +138,6 @@ describe("verified event ingress", () => {
     const signatureVerifier = { verify: vi.fn().mockResolvedValue(true) };
     const authorTrustPolicy = { isTrustedAuthor: vi.fn().mockResolvedValue(false) };
     const onRejected = vi.fn();
-
-    vi.mocked(storeVerifiedEvent).mockImplementation(async (_candidate, verifier) => {
-      if (!(await verifier.verify(envelope))) {
-        throw new EventVerificationError();
-      }
-      return true;
-    });
 
     attachVerifiedEventIngress(harness.transport, {
       signatureVerifier,
