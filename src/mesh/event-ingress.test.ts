@@ -152,6 +152,23 @@ describe("verified event ingress", () => {
     expect(authorTrustPolicy.isTrustedAuthor).toHaveBeenCalledOnce();
   });
 
+  it("enforces the receiver's local hop ceiling instead of trusting relay metadata", async () => {
+    const harness = createTransportHarness();
+    const onRejected = vi.fn();
+    attachVerifiedEventIngress(harness.transport, {
+      signatureVerifier: { verify: vi.fn().mockResolvedValue(true) },
+      authorTrustPolicy: { isTrustedAuthor: vi.fn().mockResolvedValue(true) },
+      onRejected
+    });
+
+    harness.emit("peer-a", encodeRelayPacket(envelope, { hopCount: 6 }));
+
+    await vi.waitFor(() => {
+      expect(onRejected).toHaveBeenCalledWith("peer-a", "invalid_packet");
+    });
+    expect(storeVerifiedEvent).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed packets without calling storage", async () => {
     const harness = createTransportHarness();
     const onRejected = vi.fn();
