@@ -67,7 +67,9 @@ export const VanguardNearby = {
   addPayloadTransferListener: (listener: (update: PayloadTransferUpdate) => void) =>
     emitter.addListener("onPayloadTransferUpdate", listener),
   addTransportErrorListener: (listener: (error: { code: string; endpointId?: string }) => void) =>
-    emitter.addListener("onTransportError", listener)
+    emitter.addListener("onTransportError", listener),
+  addTransportStateListener: (listener: (event: { state: string }) => void) =>
+    emitter.addListener("onTransportStateChanged", listener)
 };
 
 export function encodeBytesBase64Url(bytes: Uint8Array): string {
