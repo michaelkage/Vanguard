@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#F4F1EA">
+<meta name="description" content="Vanguard engineering manual: signed events, offline relay, Android transport and trust boundaries.">
+<title>Vanguard — Field Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F4F1EA;--ink:#141413;--stone:#57554E;--line:#c9c4b9;--faint:#e8e3d9;--red:#D9381E;--green:#245c42;--amber:#8a5b17;--mono:"IBM Plex Mono",ui-monospace,monospace;--serif:"Newsreader",Georgia,serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:12px;line-height:1.55}a{color:inherit;text-decoration-thickness:1px;text-underline-offset:3px}button,input,select{font:inherit;color:inherit}button{border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:8px 11px;cursor:pointer;transition:background .15s,color .15s}button:hover{background:var(--red);border-color:var(--red)}button.secondary{background:transparent;color:var(--ink)}button.secondary:hover{background:var(--ink);color:var(--paper)}button:disabled{opacity:.35;cursor:not-allowed}code,.mono{font-family:var(--mono);overflow-wrap:anywhere}.serif{font-family:var(--serif)}.muted{color:var(--stone)}.red{color:var(--red)}.green{color:var(--green)}.small{font-size:10px}.eyebrow{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}.wrap{max-width:1240px;margin:0 auto;padding:0 26px}.topline{border-bottom:1px solid var(--ink);display:flex;justify-content:space-between;gap:16px;padding:9px 0;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.mast{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line)}.brand{font-weight:600;letter-spacing:.16em}.brand-mark{display:inline-block;width:9px;height:9px;background:var(--red);margin-right:9px}.nav{display:flex;gap:17px;flex-wrap:wrap}.nav a{text-decoration:none;color:var(--stone)}.nav a:hover{color:var(--red)}.intro{padding:22px 0 18px;border-bottom:1px solid var(--ink);display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:end}.intro h1{font:500 clamp(36px,6vw,68px)/.94 var(--serif);letter-spacing:-.035em;margin:8px 0 10px}.intro p{max-width:720px;margin:0;color:var(--stone);font-size:12px}.build-stamp{border-left:1px solid var(--line);padding:5px 0 5px 18px;display:grid;grid-template-columns:1fr auto;gap:5px 14px;align-content:end}.build-stamp strong{font-weight:500}.stamp-val{color:var(--red);text-align:right}.section{padding:22px 0;border-bottom:1px solid var(--ink)}.section-head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:12px}.section-head h2{font:500 25px/1 var(--serif);margin:0;letter-spacing:-.02em}.section-index{color:var(--red);font-size:10px}.demo-shell{border:1px solid var(--ink);display:grid;grid-template-columns:minmax(0,1.15fr) minmax(310px,.85fr);min-height:450px}.demo-main{border-right:1px solid var(--ink);min-width:0}.panel-bar{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em}.controls{display:flex;gap:7px;flex-wrap:wrap;padding:11px 12px;border-bottom:1px solid var(--line)}.controls button{font-size:10px;padding:7px 9px}.packet-list{padding:0;margin:0;list-style:none}.packet-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:start;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}.packet-row:hover,.packet-row.active{background:#e9e3d8}.packet-no{color:var(--stone)}.packet-title{font-size:11px;font-weight:600}.packet-meta{font-size:10px;color:var(--stone);margin-top:2px}.state{font-size:9px;text-transform:uppercase;border:1px solid var(--line);padding:2px 5px;white-space:nowrap}.state.pending{color:var(--amber);border-color:#b99b6b}.state.verified{color:var(--green);border-color:#7f9d88}.state.rejected{color:var(--red);border-color:#d49a90}.empty{padding:28px 14px;color:var(--stone);text-align:center}.inspector{min-width:0}.inspector-body{padding:12px}.inspector h3{font:500 19px/1.1 var(--serif);margin:2px 0 10px}.kv{display:grid;grid-template-columns:108px 1fr;gap:5px 10px;padding:8px 0;border-top:1px solid var(--line);font-size:10px}.kv .k{color:var(--stone)}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eae5dc;border:1px solid var(--line);padding:9px;margin:8px 0;font:10px/1.5 var(--mono);max-height:180px;overflow:auto}.gate-list{display:grid;gap:7px;margin:12px 0}.gate{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted var(--line);padding:5px 0;font-size:10px}.gate b{font-weight:500}.gate .pass{color:var(--green)}.gate .fail{color:var(--red)}.sim-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.sim-note{font-size:10px;color:var(--stone);border-top:1px solid var(--line);padding:9px 12px}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:24px}.prose h3{font:500 20px/1.1 var(--serif);margin:0 0 7px}.prose p{margin:0 0 9px;color:var(--stone)}.prose ul{padding-left:18px;margin:8px 0}.prose li{margin:4px 0}.rule{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}.tree{border:1px solid var(--line);font-size:10px}.tree-row{display:grid;grid-template-columns:minmax(190px,.75fr) 1.25fr;gap:12px;padding:7px 9px;border-bottom:1px solid var(--line)}.tree-row:last-child{border-bottom:0}.tree-path{font-weight:500}.tree-desc{color:var(--stone)}.flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:10px 0 4px}.flow-step{min-width:120px;border:1px solid var(--ink);padding:9px;background:transparent;flex:1}.flow-step b{display:block;font-size:10px;margin-bottom:3px}.flow-step span{display:block;font-size:9px;color:var(--stone)}.flow-arrow{display:grid;place-items:center;min-width:22px;color:var(--red)}.spec-table{width:100%;border-collapse:collapse;font-size:10px}.spec-table th,.spec-table td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}.spec-table th{color:var(--stone);font-weight:500;text-transform:uppercase;letter-spacing:.06em}.api-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border:1px solid var(--ink)}.api-cell{padding:10px;border-right:1px solid var(--line);min-width:0}.api-cell:last-child{border-right:0}.api-cell b{display:block;font-size:10px;font-weight:500}.api-cell span{display:block;color:var(--stone);font-size:10px;margin-top:3px;overflow-wrap:anywhere}.asset-list{margin:8px 0 0;padding:0;list-style:none}.asset-list li{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:7px 0;font-size:10px}.asset-list a{color:var(--red)}.statusline{display:flex;gap:8px;align-items:center}.dot{width:7px;height:7px;border-radius:50%;background:var(--amber);display:inline-block}.dot.ok{background:var(--green)}.dot.bad{background:var(--red)}.foot{padding:16px 0 24px;color:var(--stone);font-size:10px;display:flex;justify-content:space-between;gap:20px}.embedded-only{display:none}body.is-embedded .outer-chrome{display:none}body.is-embedded .wrap{max-width:none;padding-left:14px;padding-right:14px}body.is-embedded .embedded-only{display:inline}body.is-embedded .intro{padding-top:12px}body.is-embedded .section{padding:15px 0}
+@media(max-width:800px){.wrap{padding:0 15px}.intro{grid-template-columns:1fr;gap:14px}.build-stamp{border-left:0;border-top:1px solid var(--line);padding:9px 0 0}.demo-shell{grid-template-columns:1fr}.demo-main{border-right:0;border-bottom:1px solid var(--ink)}.two-col{grid-template-columns:1fr}.api-grid{grid-template-columns:1fr}.api-cell{border-right:0;border-bottom:1px solid var(--line)}.api-cell:last-child{border-bottom:0}.tree-row{grid-template-columns:1fr;gap:2px}.nav{gap:10px}.foot{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="outer-chrome">
+  <div class="topline"><span>Field manual / engineering edition</span><span id="clock">LOCAL BUILD · 0.1.0</span></div>
+  <div class="mast"><div class="brand"><span class="brand-mark"></span>VANGUARD</div><nav class="nav"><a href="#demo">Packet lab</a><a href="#architecture">Architecture</a><a href="#constraints">Constraints</a><a href="#release">Repository</a></nav></div>
+</header>
+<main>
+<section class="intro">
+  <div><div class="eyebrow">Local-first · Android-first · Protocol v1</div><h1>Events that travel<br>when networks don’t.</h1><p>Vanguard is a signed-event and store-carry-forward communication foundation for campus environments with unreliable internet. Devices exchange bounded packets nearby, retain verified events, and are intended to sync them when an authoritative gateway is reachable.</p></div>
+  <div class="build-stamp"><span class="eyebrow">Current build</span><span class="stamp-val">DEVELOPMENT</span><strong>Application version</strong><span class="stamp-val">0.1.0</span><strong>Target transport</strong><span class="stamp-val">ANDROID / NEARBY</span><strong>Release channel</strong><span class="stamp-val" id="release-tag">CHECKING…</span><strong>Published binaries</strong><span class="stamp-val" id="binary-count">CHECKING…</span></div>
+</section>
+
+<section class="section" id="demo">
+  <div class="section-head"><h2>01 / Packet lab</h2><span class="section-index">INTERACTIVE · LOCAL ONLY</span></div>
+  <p class="muted" style="margin:0 0 12px">Generate an actual Ed25519 keypair in this browser, sign a Vanguard-shaped event, frame it as a relay packet, then run signature and author-policy gates. This lab uses WebCrypto, not the Android native module. Trust and cloud acknowledgement are deliberately simulated.</p>
+  <div class="demo-shell">
+    <div class="demo-main">
+      <div class="panel-bar"><span>Offline event queue</span><span id="queue-count">0 EVENTS</span></div>
+      <div class="controls">
+        <button id="key-btn">Generate demo identity</button>
+        <button id="event-btn" disabled>+ Queue signed event</button>
+        <button id="relay-btn" class="secondary" disabled>Relay selected</button>
+        <button id="sync-btn" class="secondary" disabled>Simulate cloud ack</button>
+        <button id="reset-btn" class="secondary">Reset lab</button>
+      </div>
+      <ul class="packet-list" id="packet-list"><li class="empty">No events queued. Generate a demo identity to begin.</li></ul>
+      <div class="sim-note" id="lab-status" role="status" aria-live="polite">Browser cryptography support will be checked when you generate an identity.</div>
+    </div>
+    <aside class="inspector">
+      <div class="panel-bar"><span>Event inspector</span><span id="inspector-state">NO SELECTION</span></div>
+      <div class="inspector-body" id="inspector"><div class="empty">Select an event to inspect its envelope, relay metadata and verification gates.</div></div>
+    </aside>
+  </div>
+  <div class="two-col" style="margin-top:12px">
+    <div class="prose"><h3>What the lab proves</h3><p>The browser creates an Ed25519 keypair, canonicalizes the unsigned event fields, computes a SHA-256 event ID, and signs the canonical UTF-8 bytes. The receiver independently recomputes the ID and verifies the Ed25519 signature before the demo author policy is consulted.</p></div>
+    <div class="prose"><h3>What it does not prove</h3><p>The author allowlist is a local switch, not Vanguard’s server-signed campus registry. Relay hops are mutable and unauthenticated. “Simulate cloud ack” only changes this page’s demo state; it does not contact Supabase or mark any real database row confirmed.</p></div>
+  </div>
+</section>
+
+<section class="section" id="architecture">
+  <div class="section-head"><h2>02 / System map</h2><span class="section-index">SOURCE-ALIGNED</span></div>
+  <div class="flow" aria-label="Vanguard event pipeline">
+    <div class="flow-step"><b>01 · Create</b><span>Canonical payload + native Ed25519 signature</span></div><div class="flow-arrow">→</div>
+    <div class="flow-step"><b>02 · Frame</b><span>Immutable envelope + mutable hop metadata</span></div><div class="flow-arrow">→</div>
+    <div class="flow-step"><b>03 · Nearby</b><span>Google Play services P2P_CLUSTER</span></div><div class="flow-arrow">→</div>
+    <div class="flow-step"><b>04 · Verify</b><span>Signature → campus author policy</span></div><div class="flow-arrow">→</div>
+    <div class="flow-step"><b>05 · Persist</b><span>SQLCipher event store + relay outbox</span></div><div class="flow-arrow">→</div>
+    <div class="flow-step"><b>06 · Sync later</b><span>Backend ingestion and per-event ack (not built)</span></div>
+  </div>
+  <div class="two-col" style="margin-top:18px">
+    <div><div class="eyebrow" style="margin-bottom:7px">Repository map · active app branch</div><div class="tree">
+      <div class="tree-row"><span class="tree-path">src/protocol/</span><span class="tree-desc">Envelope shape, canonical JSON, event creation and verification adapter.</span></div>
+      <div class="tree-row"><span class="tree-path">src/mesh/</span><span class="tree-desc">Nearby transport adapter, permission coordination, relay framing, bounded verified ingress and session lifecycle.</span></div>
+      <div class="tree-row"><span class="tree-path">src/identity/</span><span class="tree-desc">Native identity composition and pinned-server campus author registry policy.</span></div>
+      <div class="tree-row"><span class="tree-path">src/storage/</span><span class="tree-desc">SQLCipher bootstrap, event/outbox repository, peer delivery history and registry snapshot cache.</span></div>
+      <div class="tree-row"><span class="tree-path">modules/vanguard-identity/</span><span class="tree-desc">Local Expo Kotlin module: Ed25519 identity, sign/verify, AES-GCM wrapped private key.</span></div>
+      <div class="tree-row"><span class="tree-path">modules/vanguard-nearby/</span><span class="tree-desc">Local Expo Kotlin module: Google Nearby discovery, explicit connection decisions and byte payloads.</span></div>
+      <div class="tree-row"><span class="tree-path">protocol-core/</span><span class="tree-desc">Kotlin/JVM protocol v1 reference implementation and tests.</span></div>
+      <div class="tree-row"><span class="tree-path">android-runtime/</span><span class="tree-desc">Room-backed Android storage reference retained for comparison; not the Expo app’s active store.</span></div>
+      <div class="tree-row"><span class="tree-path">protocol/</span><span class="tree-desc">Wire contract, cross-language fixture, author registry contract and roadmap.</span></div>
+      <div class="tree-row"><span class="tree-path">docs/</span><span class="tree-desc">Architecture decisions and this field manual.</span></div>
+    </div></div>
+    <div class="prose">
+      <h3>Event envelope</h3><p>The v1 signed envelope has exactly eight fields. The event ID and Ed25519 signature cover the same canonical unsigned representation; neither covers the signature field or ID itself.</p>
+      <pre>{
+  version: 1,
+  id: "base64url(SHA-256(unsigned))",
+  type: "message.created",
+  authorPublicKey: "Ed25519 SPKI / base64url",
+  createdAtEpochMs: 1700000000000,
+  expiresAtEpochMs: null,
+  payloadCanonicalJson: "{...}",
+  signature: "Ed25519 / base64url"
+}</pre>
+      <h3 class="rule">Ingress acceptance order</h3><p>Incoming bytes are bounded and parsed as a relay frame. The receiver applies its own hop ceiling, checks expiry, verifies the signature and event ID, asks an injected fail-closed author-trust policy, then calls the durable repository. Unknown authors never become trusted by default.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="constraints">
+  <div class="section-head"><h2>03 / Engineering constraints</h2><span class="section-index">CURRENT IMPLEMENTATION · NOT ROADMAP PROMISES</span></div>
+  <table class="spec-table">
+    <thead><tr><th>Area</th><th>Implemented now</th><th>Boundary / not yet implemented</th></tr></thead>
+    <tbody>
+      <tr><td>Client</td><td>Expo SDK 58, React Native 0.88, React 19.3, TypeScript; Development Build configuration.</td><td>Expo Go is not sufficient. The product UI is still a foundation, not a finished campus app.</td></tr>
+      <tr><td>Android identity</td><td>Native Ed25519 generation/sign/verify. PKCS#8 private bytes are AES-256-GCM encrypted under an Android Keystore wrapping key.</td><td>Not a hardware-backed Ed25519 key. No biometric authorization. Private bytes exist briefly in native process memory during signing.</td></tr>
+      <tr><td>Local storage</td><td>Expo SQLite configured for SQLCipher; random 256-bit DB key held in SecureStore; fail-closed if SQLCipher is absent. 50 MiB logical event budget.</td><td>50 MiB is a logical envelope budget, not a physical disk cap; WAL/page overhead remains. Real SQLCipher development-build integration tests remain open.</td></tr>
+      <tr><td>Nearby transport</td><td>Android Google Play services Nearby Connections 19.5.1, P2P_CLUSTER, discovery, explicit accept/reject, auth digits, transfer callbacks. 24 KiB Vanguard packet cap.</td><td>Requires Google Play services and runtime permissions. iOS transport is not implemented. Background discovery is opportunistic.</td></tr>
+      <tr><td>Ingress</td><td>24 KiB frame limit, 4 concurrent verifications, queue bounded at 64, signature + injected author policy before persistence.</td><td>Hop count is mutable, unauthenticated metadata; a malicious peer can reset it. Authenticated relay provenance is still needed.</td></tr>
+      <tr><td>Campus trust</td><td>Client validates pinned-server-signed snapshots, freshness, sequence monotonicity and equivocation; caches in SQLCipher and re-verifies after restart.</td><td>Enrollment, proof-of-possession endpoint, server registry, snapshot issuance/rotation/revocation and rollback-resistant time anchoring are absent. No backend snapshot means no trusted campus authors.</td></tr>
+      <tr><td>Cloud</td><td>Repository exposes bounded pending-event batches and explicit per-ID acknowledgement handling.</td><td>No Supabase ingestion function, server acknowledgements, push notifications or authoritative PlugScore projection integration.</td></tr>
+      <tr><td>Cross-platform</td><td>iOS identifiers/configuration exist in Expo app config.</td><td>There is no iOS Nearby transport adapter or Android↔iOS interoperability claim.</td></tr>
+      <tr><td>Validation</td><td>TypeScript tests, Kotlin/JVM protocol tests, Android storage build and CI compilation path.</td><td>Physical two-device relay, radio/background lifecycle, identity custody and real SQLCipher integration still require device validation.</td></tr>
+    </tbody>
+  </table>
+  <div class="two-col" style="margin-top:15px">
+    <div class="prose"><h3>Protocol rules worth remembering</h3><ul><li>Never mutate the author-signed envelope while relaying.</li><li>Hop count, path, receipts and retry metadata stay outside the signed envelope.</li><li>A signature proves key control, not a student’s identity or campus membership.</li><li>Unknown, suspended, revoked, expired or stale registry keys fail closed.</li><li>Unconfirmed events are not silently deleted to satisfy the storage budget.</li><li>Cloud confirmation requires an explicit acknowledgement for that event ID.</li></ul></div>
+    <div class="prose"><h3>Build and development</h3><p>Requirements from the active branch README: Node.js 22.13+, JDK 17 and Android SDK. A physical Android device is required to validate Nearby, permissions, radio state, background execution and Keystore behavior.</p><pre>npm install
+npx expo install --fix
+npm run typecheck
+npm test
+npm run doctor
+npx expo prebuild --platform android
+npm run android</pre><p>Native app builds require a development build; <code>npm run ios</code> exists as a package script, but the Vanguard iOS transport is not implemented.</p></div>
+  </div>
+</section>
+
+<section class="section" id="release">
+  <div class="section-head"><h2>04 / Repository wire</h2><span class="section-index">GITHUB API · AUTO-DISCOVERED</span></div>
+  <div class="api-grid">
+    <div class="api-cell"><div class="eyebrow">Repository</div><b id="repo-name">Resolving repository…</b><span id="repo-description">—</span></div>
+    <div class="api-cell"><div class="eyebrow">Default branch / activity</div><b id="repo-branch">—</b><span id="repo-pushed">Last push: —</span></div>
+    <div class="api-cell"><div class="eyebrow">Latest commit</div><b id="commit-sha">—</b><span id="commit-date">Commit date: —</span></div>
+  </div>
+  <div class="two-col" style="margin-top:13px">
+    <div class="prose"><h3>Latest published release</h3><p id="release-summary">Checking GitHub Releases…</p><ul class="asset-list" id="release-assets"><li>Fetching release assets…</li></ul></div>
+    <div class="prose"><h3>Repository endpoints</h3><p id="repo-wire" class="mono small">—</p><p id="api-state" class="statusline"><span class="dot"></span><span>Waiting for GitHub API</span></p><p class="small muted">The page reads repository metadata, the latest published release and the latest commit. GitHub API rate limits or a repository without releases are shown as data states, not hidden.</p></div>
+  </div>
+</section>
+</main>
+<footer class="foot"><span>VANGUARD / FIELD MANUAL · BUILT FROM REPOSITORY CONTRACTS</span><span><a id="source-link" href="https://github.com/michaelkage/Vanguard">SOURCE REPOSITORY</a> · <span class="embedded-only">EMBEDDED VIEW</span><span id="footer-repo"></span></span></footer>
+</div>
+<script>
+(function(){
+"use strict";
+if(window.self!==window.top){document.body.classList.add("is-embedded");}
+var $=function(id){return document.getElementById(id);};
+var state={keys:null,events:[],selected:null,sequence:0,allowAuthor:true};
+var encoder=new TextEncoder();
+function b64url(bytes){var s="";for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");}
+function utf8(s){return encoder.encode(s);}
+function canonical(value){
+ if(value===null||typeof value==="boolean"||typeof value==="string")return JSON.stringify(value);
+ if(typeof value==="number"){if(!Number.isFinite(value))throw new TypeError("Non-finite number");return JSON.stringify(value);}
+ if(Array.isArray(value))return "["+value.map(canonical).join(",")+"]";
+ if(typeof value==="object"){var keys=Object.keys(value).sort();return "{"+keys.map(function(k){return JSON.stringify(k)+":"+canonical(value[k]);}).join(",")+"}";}
+ throw new TypeError("Unsupported JSON value");
+}
+function unsignedMessage(event){return "{\"version\":1,\"type\":"+JSON.stringify(event.type)+",\"authorPublicKey\":"+JSON.stringify(event.authorPublicKey)+",\"createdAtEpochMs\":"+event.createdAtEpochMs+",\"expiresAtEpochMs\":"+(event.expiresAtEpochMs===null?"null":event.expiresAtEpochMs)+",\"payload\":"+event.payloadCanonicalJson+"}";}
+function digestId(message){return crypto.subtle.digest("SHA-256",utf8(message)).then(function(d){return b64url(new Uint8Array(d));});}
+function safeDate(ms){try{return new Date(ms).toLocaleString();}catch(e){return String(ms);}}
+function statusText(ev){return ev.cloud?"SERVER ACK (SIMULATED)":ev.relayed?"RELAYED (SIMULATED)":ev.verified?"VERIFIED / QUEUED":"QUEUED";}
+function setLab(message){$("lab-status").textContent=message;}
+function renderList(){
+ $("queue-count").textContent=state.events.length+" EVENT"+(state.events.length===1?"":"S");
+ var list=$("packet-list");list.innerHTML="";
+ if(!state.events.length){var li=document.createElement("li");li.className="empty";li.textContent="No events queued. Generate a demo identity to begin.";list.appendChild(li);$("inspector").innerHTML='<div class="empty">Select an event to inspect its envelope, relay metadata and verification gates.</div>';$("inspector-state").textContent="NO SELECTION";return;}
+ state.events.forEach(function(ev,index){
+  var li=document.createElement("li");li.className="packet-row"+(state.selected===ev.id?" active":"");li.tabIndex=0;li.setAttribute("role","button");li.setAttribute("aria-label","Inspect event "+(index+1));
+  var no=document.createElement("span");no.className="packet-no";no.textContent=String(index+1).padStart(2,"0");
+  var body=document.createElement("span");var title=document.createElement("span");title.className="packet-title";title.textContent=ev.type+" · "+ev.payload.label;
+  var meta=document.createElement("span");meta.className="packet-meta";meta.textContent=ev.id.slice(0,13)+"… · hop "+ev.relay.hopCount+" · "+statusText(ev);
+  body.appendChild(title);body.appendChild(document.createElement("br"));body.appendChild(meta);
+  var badge=document.createElement("span");badge.className="state "+(ev.rejected?"rejected":ev.verified?"verified":"pending");badge.textContent=ev.rejected?"REJECTED":ev.verified?"VERIFIED":"PENDING";
+  li.appendChild(no);li.appendChild(body);li.appendChild(badge);
+  li.addEventListener("click",function(){state.selected=ev.id;renderList();renderInspector();});
+  li.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();state.selected=ev.id;renderList();renderInspector();}});
+  list.appendChild(li);
+ });
+ $("relay-btn").disabled=!state.selected;$("sync-btn").disabled=!state.selected;
+ renderInspector();
+}
+function selected(){return state.events.find(function(e){return e.id===state.selected;})||null;}
+function renderInspector(){
+ var ev=selected();var box=$("inspector");
+ if(!ev){box.innerHTML='<div class="empty">Select an event to inspect its envelope, relay metadata and verification gates.</div>';$("inspector-state").textContent="NO SELECTION";return;}
+ $("inspector-state").textContent=ev.verified?"VERIFIED":ev.rejected?"REJECTED":"UNVERIFIED";
+ var gates=[
+ ["Frame shape",ev.frameValid,"Exact v1 envelope and relay fields"],
+ ["Event ID",ev.idValid,"SHA-256 over canonical unsigned bytes"],
+ ["Ed25519 signature",ev.signatureValid,"WebCrypto verification"],
+ ["Author policy",ev.authorTrusted,"Local demo allowlist (not campus registry)"],
+ ["Persist decision",ev.verified,"All gates must pass before demo persistence"]
+ ];
+ var html='<h3>'+escapeHtml(ev.type)+'</h3><div class="kv"><span class="k">Event ID</span><span>'+escapeHtml(ev.id)+'</span><span class="k">Author key</span><span>'+escapeHtml(ev.authorPublicKey.slice(0,18))+'…</span><span class="k">Created</span><span>'+escapeHtml(safeDate(ev.createdAtEpochMs))+'</span><span class="k">Relay hop</span><span>'+ev.relay.hopCount+' / '+ev.relay.maxHops+' <span class="muted">(unsigned)</span></span><span class="k">Delivery</span><span>'+escapeHtml(statusText(ev))+'</span></div><div class="eyebrow" style="margin-top:10px">Verification gates</div><div class="gate-list">';
+ gates.forEach(function(g){html+='<div class="gate"><b>'+escapeHtml(g[0])+'</b><span class="'+(g[1]?"pass":"fail")+'">'+(g[1]?"PASS":"FAIL")+' · '+escapeHtml(g[2])+'</span></div>';});
+ html+='</div><div class="eyebrow">Signed envelope</div><pre>'+escapeHtml(JSON.stringify(ev.envelope,null,2))+'</pre><div class="eyebrow">Relay metadata · outside signature</div><pre>'+escapeHtml(JSON.stringify(ev.relay,null,2))+'</pre><div class="sim-actions"><button class="secondary" id="toggle-trust">'+(state.allowAuthor?"Block demo author":"Allow demo author")+'</button><button class="secondary" id="tamper">Tamper with signature</button><button class="secondary" id="verify-again">Verify again</button></div>';
+ box.innerHTML=html;
+ $("toggle-trust").addEventListener("click",function(){state.allowAuthor=!state.allowAuthor;setLab("Demo author policy set to "+(state.allowAuthor?"ALLOW":"BLOCK")+". Re-run verification to apply it.");renderInspector();});
+ $("tamper").addEventListener("click",function(){ev.envelope.signature=(ev.envelope.signature.charAt(0)==="A"?"B":"A")+ev.envelope.signature.slice(1);ev.signatureValid=false;ev.verified=false;ev.rejected=true;ev.cloud=false;ev.relayed=false;setLab("Signature bytes changed. Re-run verification; the cryptographic check should fail.");renderList();});
+ $("verify-again").addEventListener("click",function(){verifyEvent(ev).then(function(){state.selected=ev.id;renderList();setLab(ev.verified?"Event passed both verification gates.":"Event rejected by signature or author policy.");}).catch(function(err){setLab("Verification error: "+err.message);});});
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+async function verifyEvent(ev){
+ ev.frameValid=!!ev.envelope&&ev.envelope.version===1&&ev.relay&&Number.isInteger(ev.relay.hopCount)&&ev.relay.hopCount>=1&&ev.relay.hopCount<=8;
+ var msg=unsignedMessage(ev.envelope);var recomputed=await digestId(msg);
+ ev.idValid=recomputed===ev.envelope.id;
+ var sig=Uint8Array.from(atob(ev.envelope.signature.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.signature.length%4)%4)),function(c){return c.charCodeAt(0);});
+ ev.signatureValid=await crypto.subtle.verify({name:"Ed25519"},state.keys.publicKey,sig,utf8(msg));
+ ev.authorTrusted=state.allowAuthor&&ev.authorPublicKey===state.keys.publicKeyEncoded;
+ ev.verified=ev.frameValid&&ev.idValid&&ev.signatureValid&&ev.authorTrusted;
+ ev.rejected=!ev.verified;
+ return ev.verified;
+}
+async function createIdentity(){
+ if(!crypto||!crypto.subtle){throw new Error("WebCrypto is unavailable. Use HTTPS or localhost in a modern browser.");}
+ if(!crypto.subtle.generateKey){throw new Error("WebCrypto Ed25519 is not available in this browser.");}
+ var pair=await crypto.subtle.generateKey({name:"Ed25519"},true,["sign","verify"]);
+ var spki=new Uint8Array(await crypto.subtle.exportKey("spki",pair.publicKey));
+ state.keys={privateKey:pair.privateKey,publicKey:pair.publicKey,publicKeyEncoded:b64url(spki)};
+ $("event-btn").disabled=false;
+ setLab("Demo identity generated. Public key is SPKI/base64url; private key remains in this page's JS memory.");
+}
+async function queueEvent(){
+ if(!state.keys)throw new Error("Generate an identity first.");
+ state.sequence++;
+ var payload={label:"Campus note "+state.sequence,body:"Offline event created in the Vanguard packet lab.",sequence:state.sequence};
+ var payloadJson=canonical(payload);
+ var event={version:1,type:"message.created",authorPublicKey:state.keys.publicKeyEncoded,createdAtEpochMs:Date.now(),expiresAtEpochMs:null,payloadCanonicalJson:payloadJson};
+ var msg=unsignedMessage(event);event.id=await digestId(msg);
+ var sig=await crypto.subtle.sign({name:"Ed25519"},state.keys.privateKey,utf8(msg));event.signature=b64url(new Uint8Array(sig));
+ var envelope={version:1,id:event.id,type:event.type,authorPublicKey:event.authorPublicKey,createdAtEpochMs:event.createdAtEpochMs,expiresAtEpochMs:null,payloadCanonicalJson:event.payloadCanonicalJson,signature:event.signature};
+ var relay={hopCount:1,maxHops:5};
+ var record={id:event.id,type:event.type,authorPublicKey:event.authorPublicKey,createdAtEpochMs:event.createdAtEpochMs,payload:payload,envelope:envelope,relay:relay,frameValid:false,idValid:false,signatureValid:false,authorTrusted:false,verified:false,rejected:false,relayed:false,cloud:false};
+ state.events.unshift(record);state.selected=record.id;
+ await verifyEvent(record);
+ renderList();setLab("Signed event queued and verified locally. No radio or server was contacted.");
+}
+function relaySelected(){
+ var ev=selected();if(!ev)return;
+ if(!ev.verified){setLab("Relay blocked: event has not passed signature and author-policy checks.");return;}
+ if(ev.relay.hopCount>=ev.relay.maxHops){setLab("Relay blocked: receiver-side hop ceiling reached.");return;}
+ ev.relay={hopCount:ev.relay.hopCount+1,maxHops:ev.relay.maxHops};ev.relayed=true;
+ renderList();setLab("Simulated one-hop forward. Relay metadata changed; signed envelope and event ID did not.");
+}
+function cloudAck(){
+ var ev=selected();if(!ev)return;
+ if(!ev.verified){setLab("Cloud acknowledgement unavailable for a rejected event.");return;}
+ ev.cloud=true;renderList();setLab("Simulated per-event server acknowledgement. This is a UI state only, not a real gateway response.");
+}
+function reset(){state={keys:null,events:[],selected:null,sequence:0,allowAuthor:true};$("event-btn").disabled=true;$("relay-btn").disabled=true;$("sync-btn").disabled=true;renderList();setLab("Lab reset. No keys, events or relay state retained.");}
+$("key-btn").addEventListener("click",function(){createIdentity().catch(function(e){setLab(e.message);});});
+$("event-btn").addEventListener("click",function(){queueEvent().catch(function(e){setLab(e.message);});});
+$("relay-btn").addEventListener("click",relaySelected);$("sync-btn").addEventListener("click",cloudAck);$("reset-btn").addEventListener("click",reset);
+
+function detectRepo(){
+ var host=location.hostname.split(".");
+ var path=location.pathname.split("/").filter(Boolean);
+ if(host.length>=3&&host.slice(-2).join(".")==="github.io"&&path.length){return host[0]+"/"+path[0];}
+ if(host.length>=3&&host[host.length-2]==="github"&&host[host.length-1]==="com"&&path.length>=2){return path[0]+"/"+path[1];}
+ var q=new URLSearchParams(location.search).get("repo");if(q&&/^[\w.-]+\/[\w.-]+$/.test(q))return q;
+ return "michaelkage/Vanguard";
+}
+function fmtDate(value){if(!value)return "—";var d=new Date(value);return isNaN(d.getTime())?"—":d.toLocaleString();}
+async function loadGithub(){
+ var repo=detectRepo(),parts=repo.split("/"),base="https://api.github.com/repos/"+parts[0]+"/"+parts[1];
+ $("repo-wire").textContent=base+" · /releases/latest · /commits?per_page=1";
+ $("source-link").href="https://github.com/"+repo;$("footer-repo").textContent=" · "+repo;
+ var headers={"Accept":"application/vnd.github+json"};
+ try{
+  var responses=await Promise.allSettled([fetch(base,{headers:headers}),fetch(base+"/releases/latest",{headers:headers}),fetch(base+"/commits?per_page=1",{headers:headers})]);
+  if(responses[0].status!=="fulfilled"||!responses[0].value.ok)throw new Error("Repository API returned "+(responses[0].status==="fulfilled"?responses[0].value.status:"a network error"));
+  var r=await responses[0].value.json();
+  $("repo-name").textContent=r.full_name||repo;$("repo-description").textContent=r.description||"No repository description.";
+  $("repo-branch").textContent=r.default_branch||"—";$("repo-pushed").textContent="Last push: "+fmtDate(r.pushed_at);
+  $("api-state").innerHTML='<span class="dot ok"></span><span>Repository metadata loaded · '+(r.private?"private":"public")+'</span>';
+  $("clock").textContent="GITHUB / "+(r.default_branch||"MAIN").toUpperCase();
+  if(responses[2].status==="fulfilled"&&responses[2].value.ok){
+   var commits=await responses[2].value.json(),c=commits[0];
+   if(c){$("commit-sha").textContent=(c.sha||"").slice(0,12);$("commit-date").textContent="Commit date: "+fmtDate(c.commit&&c.commit.committer&&c.commit.committer.date);$("commit-sha").title=c.sha;}
+  }else{$("commit-date").textContent="Latest commit unavailable (API limit or access error).";}
+  if(responses[1].status==="fulfilled"&&responses[1].value.ok){
+   var rel=await responses[1].value.json();$("release-tag").textContent=rel.tag_name||rel.name||"PUBLISHED";$("release-summary").textContent=(rel.name||rel.tag_name||"Latest release")+" · published "+fmtDate(rel.published_at);
+   var assets=$("release-assets");assets.innerHTML="";
+   (rel.assets||[]).forEach(function(a){var li=document.createElement("li"),name=document.createElement("span"),link=document.createElement("a");name.textContent=a.name+" · "+(a.size?Math.round(a.size/1024/1024*10)/10+" MiB":"asset");link.href=a.browser_download_url;link.textContent="DOWNLOAD";link.rel="noopener";li.appendChild(name);li.appendChild(link);assets.appendChild(li);});
+   if(!(rel.assets||[]).length){var no=document.createElement("li");no.textContent="Release published; no binary assets attached.";assets.appendChild(no);}
+   $("binary-count").textContent=(rel.assets||[]).length+" ASSET"+((rel.assets||[]).length===1?"":"S");
+  }else{
+   $("release-tag").textContent="NO RELEASE";$("binary-count").textContent="0 ASSETS";
+   $("release-summary").textContent=responses[1].status==="fulfilled"&&responses[1].value.status===404?"No published GitHub release found. This is not an installable binary release.":"Release endpoint unavailable (rate limit or network).";
+   $("release-assets").innerHTML="<li>No downloadable release assets available.</li>";
+  }
+ }catch(err){
+  $("repo-name").textContent=repo;$("repo-description").textContent="GitHub metadata unavailable.";
+  $("release-tag").textContent="UNKNOWN";$("binary-count").textContent="UNKNOWN";
+  $("release-summary").textContent="Could not load release data: "+err.message;
+  $("api-state").innerHTML='<span class="dot bad"></span><span>GitHub API unavailable</span>';
+ }
+}
+renderList();loadGithub();
+})();
+</script>
+</body>
+</html>
