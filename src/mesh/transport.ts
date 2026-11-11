@@ -24,6 +24,14 @@ export interface NearbyConnectionRequest {
   readonly isIncomingConnection: boolean;
 }
 
+export interface NearbyTransferUpdate {
+  readonly deviceId: string;
+  readonly payloadId: number;
+  readonly status: "success" | "failure" | "canceled" | "in_progress" | "unknown";
+  readonly bytesTransferred: number;
+  readonly totalBytes: number;
+}
+
 export interface NearbyTransport {
   readonly state: TransportState;
   startAdvertising(serviceId: string, endpointName: string): Promise<void>;
@@ -31,12 +39,16 @@ export interface NearbyTransport {
   connect(deviceId: string): Promise<void>;
   acceptConnection(deviceId: string): Promise<void>;
   rejectConnection(deviceId: string): Promise<void>;
+  /** Resolves when Nearby accepts the payload for sending, not when the peer receives it. */
   send(deviceId: string, payload: Uint8Array): Promise<void>;
   disconnect(deviceId: string): Promise<void>;
   stop(): Promise<void>;
   addPeerListener(listener: (peer: NearbyPeer) => void): () => void;
+  addPeerLostListener(listener: (deviceId: string) => void): () => void;
   addConnectionRequestListener(listener: (request: NearbyConnectionRequest) => void): () => void;
   addPayloadListener(listener: (deviceId: string, payload: Uint8Array) => void): () => void;
+  addTransferListener(listener: (update: NearbyTransferUpdate) => void): () => void;
+  addErrorListener(listener: (error: { code: string; deviceId?: string }) => void): () => void;
 }
 
 type Listener<T> = (value: T) => void;
@@ -70,8 +82,11 @@ export class AndroidNearbyTransport implements NearbyTransport {
   private currentState: TransportState = "idle";
   private readonly connected = new Set<string>();
   private readonly peerListeners = new Set<Listener<NearbyPeer>>();
+  private readonly peerLostListeners = new Set<Listener<string>>();
   private readonly connectionRequestListeners = new Set<Listener<NearbyConnectionRequest>>();
   private readonly payloadListeners = new Set<Listener<{ deviceId: string; payload: Uint8Array }>>();
+  private readonly transferListeners = new Set<Listener<NearbyTransferUpdate>>();
+  private readonly errorListeners = new Set<Listener<{ code: string; deviceId?: string }>>();
   private readonly subscriptions: Array<{ remove(): void }>;
 
   constructor() {
@@ -83,6 +98,9 @@ export class AndroidNearbyTransport implements NearbyTransport {
       VanguardNearby.addPeerFoundListener(peer => {
         const mapped = mapPeer(peer);
         this.peerListeners.forEach(listener => listener(mapped));
+      }),
+      VanguardNearby.addPeerLostListener(event => {
+        this.peerLostListeners.forEach(listener => listener(event.endpointId));
       }),
       VanguardNearby.addConnectionInitiatedListener(request => {
         const mapped = mapConnectionRequest(request);
@@ -102,6 +120,21 @@ export class AndroidNearbyTransport implements NearbyTransport {
       VanguardNearby.addPayloadListener(payload => {
         const mapped = mapPayload(payload);
         this.payloadListeners.forEach(listener => listener(mapped));
+      }),
+      VanguardNearby.addPayloadTransferListener(update => {
+        this.transferListeners.forEach(listener => listener({
+          deviceId: update.endpointId,
+          payloadId: update.payloadId,
+          status: update.status,
+          bytesTransferred: update.bytesTransferred,
+          totalBytes: update.totalBytes
+        }));
+      }),
+      VanguardNearby.addTransportErrorListener(error => {
+        const mapped = error.endpointId === undefined
+          ? { code: error.code }
+          : { code: error.code, deviceId: error.endpointId };
+        this.errorListeners.forEach(listener => listener(mapped));
       }),
       VanguardNearby.addTransportStateListener(event => {
         if (event.state === "idle" || event.state === "advertising" || event.state === "discovering") {
@@ -163,6 +196,11 @@ export class AndroidNearbyTransport implements NearbyTransport {
     return () => this.peerListeners.delete(listener);
   }
 
+  addPeerLostListener(listener: Listener<string>): () => void {
+    this.peerLostListeners.add(listener);
+    return () => this.peerLostListeners.delete(listener);
+  }
+
   addConnectionRequestListener(listener: Listener<NearbyConnectionRequest>): () => void {
     this.connectionRequestListeners.add(listener);
     return () => this.connectionRequestListeners.delete(listener);
@@ -173,11 +211,24 @@ export class AndroidNearbyTransport implements NearbyTransport {
     return () => this.payloadListeners.delete(listener);
   }
 
+  addTransferListener(listener: Listener<NearbyTransferUpdate>): () => void {
+    this.transferListeners.add(listener);
+    return () => this.transferListeners.delete(listener);
+  }
+
+  addErrorListener(listener: Listener<{ code: string; deviceId?: string }>): () => void {
+    this.errorListeners.add(listener);
+    return () => this.errorListeners.delete(listener);
+  }
+
   dispose(): void {
     this.subscriptions.forEach(subscription => subscription.remove());
     this.peerListeners.clear();
+    this.peerLostListeners.clear();
     this.connectionRequestListeners.clear();
     this.payloadListeners.clear();
+    this.transferListeners.clear();
+    this.errorListeners.clear();
   }
 
   private async ensurePermissions(): Promise<void> {
