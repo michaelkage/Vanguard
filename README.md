@@ -19,7 +19,7 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 
 - src/protocol — TypeScript transport-envelope validation and relay policy. Kotlin remains the protocol v1 reference until cross-language vectors prove parity.
 - src/storage — SQLCipher database bootstrap and verified-event/outbox repository.
-- src/mesh — transport interface; native Android transport is a separate implementation milestone.
+- src/mesh — Android transport adapter, bounded relay-packet framing, and fail-closed verified ingress.
 - modules/vanguard-identity — local Expo module for native Android Ed25519 key generation, signing, verification, and deletion.
 - modules/vanguard-nearby — local Expo module for Android peer discovery, connection lifecycle, and bounded byte transport.
 - protocol-core — existing Kotlin/JVM protocol reference and tests.
@@ -55,7 +55,7 @@ A valid signature proves control of a key, not real-world identity or campus enr
 
 ## Not yet production-ready
 
-The native Android identity and Nearby modules compile as part of the generated Expo Android application in CI, but neither has been validated on physical devices. The Nearby link is encrypted by Google Play services, but it does not establish author identity; the signed-event verifier must run before persistence. Biometric authorization, signed peer-session handshake, enrollment and key revocation, Supabase ingestion and per-event acknowledgements, push notifications, authoritative PlugScore policy, and real-device relay acceptance tests remain to be implemented. Android Nearby Connections requires Google Play services; iOS transport is not implemented.
+The native Android identity and Nearby modules compile as part of the generated Expo Android application in CI, but neither has been validated on physical devices. The Nearby link is encrypted by Google Play services, but it does not establish author identity. Mesh ingress now validates a bounded relay frame, verifies the event signature, applies an injected fail-closed author-trust policy, and only then calls the durable event repository. The receiver enforces its own hop ceiling; it never trusts a peer-supplied max-hop policy. Biometric authorization, signed peer-session handshake, enrollment and key revocation, Supabase ingestion and per-event acknowledgements, push notifications, authoritative PlugScore policy, and real-device relay acceptance tests remain to be implemented. Android Nearby Connections requires Google Play services; iOS transport is not implemented.
 
 Do not use this foundation for payments, emergency services, or high-value authorization.
 
