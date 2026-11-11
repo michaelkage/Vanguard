@@ -104,7 +104,7 @@ describe("CampusAuthorRegistry", () => {
       "server signature verification failed"
     );
     expect(memory.latest).toBeNull();
-    expect(verify).not.toHaveBeenCalled();
+    expect(verify).toHaveBeenCalledOnce();
     expect(await registry.isTrustedAuthor(activeKey, 2_000)).toBe(false);
   });
 
