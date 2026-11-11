@@ -69,6 +69,12 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Verify local Expo module autolinking
+        run: |
+          npx expo-modules-autolinking resolve --platform android > /tmp/vanguard-autolinking.json
+          grep -q "VanguardIdentityModule" /tmp/vanguard-autolinking.json
+          grep -q "VanguardNearbyModule" /tmp/vanguard-autolinking.json
+
       - name: Type-check application
         run: npm run typecheck
 
