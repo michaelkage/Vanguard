@@ -32,8 +32,8 @@ vi.mock("react-native", () => ({
 
 vi.mock("../../modules/vanguard-nearby/src", () => ({
   VanguardNearby: mocks.nearby,
-  encodeBytesBase64Url: (bytes: Uint8Array) => Buffer.from(bytes).toString("base64url"),
-  decodeBytesBase64Url: (value: string) => new Uint8Array(Buffer.from(value, "base64url"))
+  encodeBytesBase64Url: (_bytes: Uint8Array) => "AA",
+  decodeBytesBase64Url: (_value: string) => new Uint8Array([0])
 }));
 
 vi.mock("./request-permissions", () => ({
