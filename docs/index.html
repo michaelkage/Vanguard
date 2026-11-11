@@ -147,11 +147,14 @@ var state={keys:null,events:[],selected:null,sequence:0,allowAuthor:true};
 var encoder=new TextEncoder();
 function b64url(bytes){var s="";for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");}
 function utf8(s){return encoder.encode(s);}
-function canonical(value){
- if(value===null||typeof value==="boolean"||typeof value==="string")return JSON.stringify(value);
+function canonical(value,depth){
+ depth=depth||0;if(depth>64)throw new RangeError("Canonical JSON nesting exceeds 64 levels");
+ function checkUnicode(s){for(var i=0;i<s.length;i++){var n=s.charCodeAt(i);if(n>=55296&&n<=56319){var next=s.charCodeAt(i+1);if(!(next>=56320&&next<=57343))throw new TypeError("Unpaired Unicode surrogate");i++;}else if(n>=56320&&n<=57343)throw new TypeError("Unpaired Unicode surrogate");}}
+ if(value===null)return "null";if(typeof value==="boolean")return value?"true":"false";
+ if(typeof value==="string"){checkUnicode(value);return JSON.stringify(value);}
  if(typeof value==="number"){if(!Number.isFinite(value))throw new TypeError("Non-finite number");return JSON.stringify(value);}
- if(Array.isArray(value))return "["+value.map(canonical).join(",")+"]";
- if(typeof value==="object"){var keys=Object.keys(value).sort();return "{"+keys.map(function(k){return JSON.stringify(k)+":"+canonical(value[k]);}).join(",")+"}";}
+ if(Array.isArray(value)){var values=[];for(var i=0;i<value.length;i++){if(!(i in value))throw new TypeError("Sparse canonical JSON array");values.push(canonical(value[i],depth+1));}return "["+values.join(",")+"]";}
+ if(typeof value==="object"){var proto=Object.getPrototypeOf(value);if(proto!==Object.prototype&&proto!==null)throw new TypeError("Canonical JSON requires plain objects");var keys=Object.keys(value).sort();return "{"+keys.map(function(k){checkUnicode(k);return JSON.stringify(k)+":"+canonical(value[k],depth+1);}).join(",")+"}";}
  throw new TypeError("Unsupported JSON value");
 }
 function unsignedMessage(event){return "{\"version\":1,\"type\":"+JSON.stringify(event.type)+",\"authorPublicKey\":"+JSON.stringify(event.authorPublicKey)+",\"createdAtEpochMs\":"+event.createdAtEpochMs+",\"expiresAtEpochMs\":"+(event.expiresAtEpochMs===null?"null":event.expiresAtEpochMs)+",\"payload\":"+event.payloadCanonicalJson+"}";}
@@ -220,13 +223,13 @@ async function verifyEvent(ev){
  var frameKeys=Object.keys(frame).sort(),relayKeys=ev.relay&&typeof ev.relay==="object"?Object.keys(ev.relay).sort():[];
  ev.packetBytes=encoder.encode(JSON.stringify(frame)).length;
  ev.frameValid=frameKeys.join(",")==="envelope,relay,version"&&frame.version===1&&relayKeys.length===1&&relayKeys[0]==="hopCount"&&Number.isSafeInteger(ev.relay.hopCount)&&ev.relay.hopCount>=1&&ev.relay.hopCount<=8&&validEnvelopeShape(ev.envelope)&&ev.packetBytes>0&&ev.packetBytes<=24576;
- var msg=unsignedMessage(ev.envelope);var recomputed=await digestId(msg);
+ var msg=ev.frameValid?unsignedMessage(ev.envelope):"";var recomputed=ev.frameValid?await digestId(msg):"";
  ev.idValid=ev.frameValid&&recomputed===ev.envelope.id;
  var sig=ev.frameValid?Uint8Array.from(atob(ev.envelope.signature.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.signature.length%4)%4)),function(c){return c.charCodeAt(0);}):new Uint8Array(0);
  ev.signatureValid=false;
- if(ev.frameValid){var authorKey=await crypto.subtle.importKey("spki",Uint8Array.from(atob(ev.envelope.authorPublicKey.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.authorPublicKey.length%4)%4)),function(ch){return ch.charCodeAt(0);}),{name:"Ed25519"},false,["verify"]);ev.signatureValid=await crypto.subtle.verify({name:"Ed25519"},authorKey,sig,utf8(msg));}
- ev.notExpired=ev.envelope.expiresAtEpochMs===null||Date.now()<ev.envelope.expiresAtEpochMs;
- ev.authorTrusted=state.allowAuthor&&ev.authorPublicKey===state.keys.publicKeyEncoded;
+ if(ev.frameValid){try{var authorKey=await crypto.subtle.importKey("spki",Uint8Array.from(atob(ev.envelope.authorPublicKey.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.authorPublicKey.length%4)%4)),function(ch){return ch.charCodeAt(0);}),{name:"Ed25519"},false,["verify"]);ev.signatureValid=await crypto.subtle.verify({name:"Ed25519"},authorKey,sig,utf8(msg));}catch(_){ev.signatureValid=false;}}
+ ev.notExpired=ev.frameValid&&(ev.envelope.expiresAtEpochMs===null||Date.now()<ev.envelope.expiresAtEpochMs);
+ ev.authorTrusted=ev.frameValid&&state.allowAuthor&&ev.envelope.authorPublicKey===state.keys.publicKeyEncoded;
  ev.verified=ev.frameValid&&ev.idValid&&ev.signatureValid&&ev.notExpired&&ev.authorTrusted;
  ev.rejected=!ev.verified;
  return ev.verified;
