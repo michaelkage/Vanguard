@@ -53,21 +53,19 @@ function createTransportHarness(): {
 describe("relay packet framing", () => {
   it("round-trips an immutable envelope and separate relay metadata", () => {
     const packet = decodeRelayPacket(encodeRelayPacket(envelope, {
-      hopCount: 2,
-      maxHops: 5
+      hopCount: 2
     }));
 
     expect(packet).toEqual({
       version: 1,
       envelope,
-      relay: { hopCount: 2, maxHops: 5 }
+      relay: { hopCount: 2 }
     });
   });
 
   it("rejects relay metadata outside the protocol hop limit", () => {
     expect(() => encodeRelayPacket(envelope, {
-      hopCount: 6,
-      maxHops: 5
+      hopCount: 9
     })).toThrow("Relay hop metadata");
   });
 
@@ -105,8 +103,7 @@ describe("verified event ingress", () => {
     });
 
     harness.emit("peer-a", encodeRelayPacket(envelope, {
-      hopCount: 1,
-      maxHops: 5
+      hopCount: 1
     }));
 
     await vi.waitFor(() => {
