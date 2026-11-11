@@ -118,7 +118,15 @@ export class NearbyMeshSession {
       if (failure) throw failure.reason;
       this.currentState = "running";
     } catch (error) {
-      await this.teardown();
+      try {
+        await this.teardown();
+      } catch (cleanupError) {
+        this.currentState = "stopped";
+        throw new AggregateError(
+          [error, cleanupError],
+          "Nearby session startup failed and rollback was incomplete"
+        );
+      }
       this.currentState = "stopped";
       throw error;
     }
@@ -126,18 +134,28 @@ export class NearbyMeshSession {
 
   private attachListeners(): void {
     const transport = this.options.transport;
+    // Register each disposer immediately so a later subscription failure
+    // cannot leak listeners created earlier in this method.
     this.detachListeners.push(
-      transport.addPeerListener(peer => this.notify(() => this.options.onPeerFound?.(peer))),
+      transport.addPeerListener(peer => this.notify(() => this.options.onPeerFound?.(peer)))
+    );
+    this.detachListeners.push(
       transport.addPeerLostListener(deviceId =>
         this.notify(() => this.options.onPeerLost?.(deviceId))
-      ),
+      )
+    );
+    this.detachListeners.push(
       transport.addConnectionRequestListener(request => {
         this.pendingConnections.add(request.deviceId);
         this.notify(() => this.options.onConnectionRequest?.(request));
-      }),
+      })
+    );
+    this.detachListeners.push(
       transport.addTransferListener(update =>
         this.notify(() => this.options.onTransferUpdate?.(update))
-      ),
+      )
+    );
+    this.detachListeners.push(
       transport.addErrorListener(error =>
         this.notify(() => this.options.onTransportError?.(error))
       )
@@ -190,8 +208,11 @@ export class NearbyMeshSession {
           // startInternal already performs rollback before rejecting.
         }
       }
-      await this.teardown();
-      this.currentState = "stopped";
+      try {
+        await this.teardown();
+      } finally {
+        this.currentState = "stopped";
+      }
     })().finally(() => {
       this.stopOperation = undefined;
     });
