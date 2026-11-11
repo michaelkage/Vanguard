@@ -95,8 +95,12 @@ export class NearbyMeshSession {
         authorTrustPolicy: this.options.authorTrustPolicy,
         ...(this.options.maxHops === undefined ? {} : { maxHops: this.options.maxHops }),
         ...(this.options.nowEpochMs === undefined ? {} : { nowEpochMs: this.options.nowEpochMs }),
-        onAccepted: this.options.onEventAccepted,
-        onRejected: this.options.onEventRejected
+        ...(this.options.onEventAccepted === undefined
+          ? {}
+          : { onAccepted: this.options.onEventAccepted }),
+        ...(this.options.onEventRejected === undefined
+          ? {}
+          : { onRejected: this.options.onEventRejected })
       });
 
       // Await both operations even if one fails so rollback cannot race a
