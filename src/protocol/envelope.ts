@@ -73,7 +73,7 @@ export function assertEnvelopeShape(value: unknown): asserts value is SignedEven
   }
   if (
     typeof candidate.authorPublicKey !== "string" ||
-    !/^[A-Za-z0-9_-]{32,128}$/.test(candidate.authorPublicKey)
+    !/^[A-Za-z0-9_-]{59}$/.test(candidate.authorPublicKey)
   ) {
     throw new TypeError("Invalid author public key encoding");
   }
@@ -111,7 +111,7 @@ export function assertEnvelopeShape(value: unknown): asserts value is SignedEven
     throw new TypeError("Event payload must be a JSON object");
   }
 
-  if (typeof candidate.signature !== "string" || !/^[A-Za-z0-9_-]{80,100}$/.test(candidate.signature)) {
+  if (typeof candidate.signature !== "string" || !/^[A-Za-z0-9_-]{86}$/.test(candidate.signature)) {
     throw new TypeError("Invalid signature encoding");
   }
 
