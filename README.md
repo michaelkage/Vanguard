@@ -10,7 +10,7 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 - Expo SDK 58 / React Native 0.88 / React 19.3.
 - Expo SQLite with SQLCipher for encrypted local event storage.
 - Expo SecureStore for the SQLCipher database key.
-- A 50 MiB logical event-payload budget; expired events and oldest server-confirmed events are pruned before rejecting new storage. Pending/unconfirmed events are never silently discarded. SQLite page files and WAL overhead mean this is not a hard physical disk-usage ceiling.
+- A 50 MiB logical event-store budget; expired events and oldest server-confirmed events are pruned before rejecting new storage. Pending/unconfirmed events are never silently discarded. SQLite page files and WAL overhead mean this is not a hard physical disk-usage ceiling.
 - Native Android Ed25519 identity module; private PKCS#8 bytes are AES-GCM encrypted at rest with an Android Keystore-managed wrapping key.
 - Native Android Google Nearby Connections 19.5.1 behind a TypeScript transport adapter. It supports P2P-cluster advertising/discovery, explicit connection acceptance, authentication digits, and bounded byte-payload transfer (24 KiB Vanguard packet ceiling).
 - Supabase Postgres and Edge Functions as the authoritative synchronization and policy boundary.
@@ -21,6 +21,7 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 - src/storage — SQLCipher database bootstrap and verified-event/outbox repository.
 - src/mesh — transport interface; native Android transport is a separate implementation milestone.
 - modules/vanguard-identity — local Expo module for native Android Ed25519 key generation, signing, verification, and deletion.
+- modules/vanguard-nearby — local Expo module for Android peer discovery, connection lifecycle, and bounded byte transport.
 - protocol-core — existing Kotlin/JVM protocol reference and tests.
 - android-runtime — existing Room storage foundation, retained during the migration for comparison and parity testing.
 - protocol — protocol contract and roadmap.
@@ -54,7 +55,7 @@ A valid signature proves control of a key, not real-world identity or campus enr
 
 ## Not yet production-ready
 
-The Android identity and Nearby modules need a successful Android build and physical-device validation. The Nearby link is encrypted by Google Play services, but it does not establish author identity; the signed-event verifier must run before persistence. Biometric authorization, signed peer-session handshake, enrollment and key revocation, Supabase ingestion and per-event acknowledgements, push notifications, authoritative PlugScore policy, and real-device relay acceptance tests remain to be implemented. Android Nearby Connections requires Google Play services; iOS transport is not implemented.
+The native Android identity and Nearby modules compile as part of the generated Expo Android application in CI, but neither has been validated on physical devices. The Nearby link is encrypted by Google Play services, but it does not establish author identity; the signed-event verifier must run before persistence. Biometric authorization, signed peer-session handshake, enrollment and key revocation, Supabase ingestion and per-event acknowledgements, push notifications, authoritative PlugScore policy, and real-device relay acceptance tests remain to be implemented. Android Nearby Connections requires Google Play services; iOS transport is not implemented.
 
 Do not use this foundation for payments, emergency services, or high-value authorization.
 
