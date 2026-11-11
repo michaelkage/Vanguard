@@ -189,7 +189,7 @@ function renderInspector(){
  ["Ed25519 signature",ev.signatureValid,"WebCrypto verification"],
  ["Expiry",ev.notExpired,"Expired events are not accepted into the active store"],
  ["Author policy",ev.authorTrusted,"Local demo allowlist (not campus registry)"],
- ["Persist decision",ev.verified,"All gates must pass before demo persistence"]
+ ["Accept decision",ev.verified,"All gates pass before demo queue acceptance"]
  ];
  var html='<h3>'+escapeHtml(ev.type)+'</h3><div class="kv"><span class="k">Event ID</span><span>'+escapeHtml(ev.id)+'</span><span class="k">Author key</span><span>'+escapeHtml(ev.authorPublicKey.slice(0,18))+'…</span><span class="k">Created</span><span>'+escapeHtml(safeDate(ev.createdAtEpochMs))+'</span><span class="k">Relay hop</span><span>'+ev.relay.hopCount+' / 5 <span class="muted">(receiver policy; unsigned)</span></span><span class="k">Packet bytes</span><span>'+ev.packetBytes+' / 24576</span><span class="k">Delivery</span><span>'+escapeHtml(statusText(ev))+'</span></div><div class="eyebrow" style="margin-top:10px">Verification gates</div><div class="gate-list">';
  gates.forEach(function(g){html+='<div class="gate"><b>'+escapeHtml(g[0])+'</b><span class="'+(g[1]?"pass":"fail")+'">'+(g[1]?"PASS":"FAIL")+' · '+escapeHtml(g[2])+'</span></div>';});
@@ -222,8 +222,9 @@ async function verifyEvent(ev){
  ev.frameValid=frameKeys.join(",")==="envelope,relay,version"&&frame.version===1&&relayKeys.length===1&&relayKeys[0]==="hopCount"&&Number.isSafeInteger(ev.relay.hopCount)&&ev.relay.hopCount>=1&&ev.relay.hopCount<=8&&validEnvelopeShape(ev.envelope)&&ev.packetBytes>0&&ev.packetBytes<=24576;
  var msg=unsignedMessage(ev.envelope);var recomputed=await digestId(msg);
  ev.idValid=ev.frameValid&&recomputed===ev.envelope.id;
- var sig=Uint8Array.from(atob(ev.envelope.signature.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.signature.length%4)%4)),function(c){return c.charCodeAt(0);});
- ev.signatureValid=ev.frameValid&&await crypto.subtle.verify({name:"Ed25519"},state.keys.publicKey,sig,utf8(msg));
+ var sig=ev.frameValid?Uint8Array.from(atob(ev.envelope.signature.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.signature.length%4)%4)),function(c){return c.charCodeAt(0);}):new Uint8Array(0);
+ ev.signatureValid=false;
+ if(ev.frameValid){var authorKey=await crypto.subtle.importKey("spki",Uint8Array.from(atob(ev.envelope.authorPublicKey.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-ev.envelope.authorPublicKey.length%4)%4)),function(ch){return ch.charCodeAt(0);}),{name:"Ed25519"},false,["verify"]);ev.signatureValid=await crypto.subtle.verify({name:"Ed25519"},authorKey,sig,utf8(msg));}
  ev.notExpired=ev.envelope.expiresAtEpochMs===null||Date.now()<ev.envelope.expiresAtEpochMs;
  ev.authorTrusted=state.allowAuthor&&ev.authorPublicKey===state.keys.publicKeyEncoded;
  ev.verified=ev.frameValid&&ev.idValid&&ev.signatureValid&&ev.notExpired&&ev.authorTrusted;
@@ -252,7 +253,7 @@ async function queueEvent(){
  var record={id:event.id,type:event.type,authorPublicKey:event.authorPublicKey,createdAtEpochMs:event.createdAtEpochMs,payload:payload,envelope:envelope,relay:relay,frameValid:false,idValid:false,signatureValid:false,authorTrusted:false,verified:false,rejected:false,relayed:false,cloud:false};
  state.events.unshift(record);state.selected=record.id;
  await verifyEvent(record);
- renderList();setLab("Signed event queued and verified locally. No radio or server was contacted.");
+ renderList();setLab("Signed event queued and verified locally. No SQLite database, radio or server was contacted.");
 }
 function relaySelected(){
  var ev=selected();if(!ev)return;
@@ -275,7 +276,7 @@ function detectRepo(){
  var host=location.hostname.split(".");
  var path=location.pathname.split("/").filter(Boolean);
  if(host.length===2&&host[1]==="github.io"&&path.length){return host[0]+"/"+path[0];}
- if(host.length>=3&&host[host.length-2]==="github"&&host[host.length-1]==="com"&&path.length>=2){return path[0]+"/"+path[1];}
+ if(host.length===2&&host[0]==="github"&&host[1]==="com"&&path.length>=2){return path[0]+"/"+path[1];}
  var q=new URLSearchParams(location.search).get("repo");if(q&&/^[\w.-]+\/[\w.-]+$/.test(q))return q;
  return "michaelkage/Vanguard";
 }
