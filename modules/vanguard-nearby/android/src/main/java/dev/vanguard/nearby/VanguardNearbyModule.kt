@@ -295,9 +295,11 @@ class VanguardNearbyModule : Module() {
           add(Manifest.permission.BLUETOOTH_SCAN)
           add(Manifest.permission.BLUETOOTH_CONNECT)
           add(Manifest.permission.BLUETOOTH_ADVERTISE)
+          add(Manifest.permission.ACCESS_COARSE_LOCATION)
           add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
         Build.VERSION.SDK_INT >= 29 -> {
+          add(Manifest.permission.ACCESS_COARSE_LOCATION)
           add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
         Build.VERSION.SDK_INT >= 23 -> {
