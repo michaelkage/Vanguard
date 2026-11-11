@@ -284,7 +284,10 @@ class VanguardNearbyModule : Module() {
         add(Manifest.permission.BLUETOOTH_ADVERTISE)
       } else if (Build.VERSION.SDK_INT >= 23) {
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
-        if (Build.VERSION.SDK_INT >= 29) add(Manifest.permission.ACCESS_FINE_LOCATION)
+      }
+
+      if (Build.VERSION.SDK_INT in 29..32) {
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
       }
 
       if (Build.VERSION.SDK_INT in 33..36) {
