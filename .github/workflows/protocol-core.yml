@@ -38,8 +38,8 @@ jobs:
       - name: Build Android runtime
         run: gradle :android-runtime:assembleDebug
 
-  expo-client:
-    name: Expo TypeScript checks and unit tests
+  expo-android:
+    name: Expo Android prebuild and native compilation
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -50,7 +50,19 @@ jobs:
         with:
           node-version: "22.13.0"
 
-      - name: Install dependencies
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 37
+        run: sdkmanager "platforms;android-37" "build-tools;37.0.0" "platform-tools"
+
+      - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
 
       - name: Type-check application
@@ -61,3 +73,12 @@ jobs:
 
       - name: Validate Expo SDK dependencies
         run: npm run doctor
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install --non-interactive
+        env:
+          EXPO_NO_TELEMETRY: "1"
+
+      - name: Compile Android application and local native modules
+        working-directory: android
+        run: ./gradlew :app:compileDebugKotlin
