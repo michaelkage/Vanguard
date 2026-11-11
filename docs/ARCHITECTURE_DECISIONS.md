@@ -11,7 +11,7 @@ The initial target is Android. iOS remains a separate transport implementation, 
 
 ## Decision 2 — SDK baseline
 
-Use Expo SDK 58, React Native 0.88, and React 19.3. Pin SDK package versions to the SDK 58 line and run Expo Doctor in CI. Native dependencies must be tested against the selected SDK before adoption.
+Use Expo SDK 58, React Native 0.88, and React 19.3. Pin SDK package versions to the SDK 58 line and run Expo dependency validation in CI. Native dependencies must be tested against the selected SDK before adoption.
 
 ## Decision 3 — Protocol ownership
 
@@ -21,26 +21,37 @@ The signed envelope is immutable. Hop count, relay path, peer delivery receipts,
 
 ## Decision 4 — Local persistence
 
-Use expo-sqlite with SQLCipher enabled through its config plugin. Generate a random 256-bit database key and store it in expo-secure-store, which uses Android Keystore-backed encrypted preferences and iOS Keychain. The database must be opened with the key before any schema query.
+Use expo-sqlite with SQLCipher enabled through its config plugin. Generate a random 256-bit database key and store it in expo-secure-store. The database must fail closed if SQLCipher is not present in the native binary. Set the key before any schema query.
 
-This protects the local database at rest, but it does not replace device-key custody. Private signing keys must be generated and held by a dedicated native key provider; they must never be exported into JavaScript memory or stored in SQLite/SecureStore as raw private-key bytes.
+This protects the local database at rest, but it does not replace device-key custody.
 
-## Decision 5 — Signature verification boundary
+## Decision 5 — Android signing-key custody
+
+The Android identity module generates Ed25519 key pairs with Bouncy Castle. The private PKCS#8 bytes are encrypted at rest using AES-256-GCM with a non-exportable Android Keystore wrapping key. The public key is stored with the encrypted record and authenticated as AES-GCM additional data.
+
+The private key is decrypted only inside the native module for the duration of a signing operation and is never returned to JavaScript. This is **not** a hardware-backed Ed25519 key: Android Keystore does not document a portable Ed25519 key-generation/signing contract across supported devices. The AES wrapping key may be hardware-backed depending on device capabilities, but Vanguard does not yet attest or report that property.
+
+The module does not yet require biometric authentication for signing. Biometric gating must be added as an explicit user-authentication flow rather than being implied by SecureStore or Android Keystore use.
+
+A missing wrapping key with an existing identity record is treated as an unrecoverable local key-custody error. The app must not silently create a replacement identity and pretend it is the same identity.
+
+## Decision 6 — Signature verification boundary
 
 The event repository accepts an injected SignatureVerifier and refuses to persist an event until verification succeeds. A production verifier must be backed by the native protocol/key layer. A missing verifier is an integration gap, not a reason to accept unverified events.
 
-## Decision 6 — Nearby transport boundary
+## Decision 7 — Nearby transport boundary
 
 The application depends on a transport interface. Android will use Google Nearby Connections through a native module after a real-device compatibility spike. Do not make the application depend directly on an immature React Native wrapper. A transport implementation must handle permission denial, radio disabled state, disconnects, payload limits, and process lifecycle.
 
-## Decision 7 — Sync semantics
+## Decision 8 — Sync semantics
 
 Events remain pending until the Supabase gateway returns an explicit per-event acknowledgement. A request timeout or partial response must not mark an entire batch as synced. Server confirmation is separate from local verification and peer relay acceptance.
 
 ## Explicit non-goals for this milestone
 
 - No passkey used as the generic event-signing key. Passkeys authenticate to a relying party; they are not the app's arbitrary offline signing API.
-- No assumption that Android Keystore supports Ed25519 hardware-backed keys on every device.
+- No claim that the Ed25519 private key itself is hardware-backed.
+- No claim that key protection is biometric-gated in the current module.
 - No assumption that a valid signature proves campus membership.
 - No global offline rate-limit guarantee.
 - No guaranteed 3-second/20-second background radio schedule.
