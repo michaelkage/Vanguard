@@ -19,6 +19,7 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.tasks.await
@@ -185,19 +186,25 @@ class VanguardNearbyModule : Module() {
 
     AsyncFunction("requestConnection") Coroutine { endpointId: String ->
       requireRadioPermissions()
-      require(endpointId in discoveredEndpoints) { "Endpoint is not currently discovered" }
+      require(discoveredEndpoints.containsKey(endpointId)) {
+        "Endpoint is not currently discovered"
+      }
       getClient().requestConnection(localEndpointName, endpointId, lifecycleCallback).await()
       null
     }
 
     AsyncFunction("acceptConnection") Coroutine { endpointId: String ->
-      require(endpointId in pendingEndpoints) { "No pending connection request for this endpoint" }
+      require(endpointId in pendingEndpoints) {
+        "No pending connection request for this endpoint"
+      }
       getClient().acceptConnection(endpointId, payloadCallback).await()
       null
     }
 
     AsyncFunction("rejectConnection") Coroutine { endpointId: String ->
-      require(endpointId in pendingEndpoints) { "No pending connection request for this endpoint" }
+      require(endpointId in pendingEndpoints) {
+        "No pending connection request for this endpoint"
+      }
       getClient().rejectConnection(endpointId).await()
       pendingEndpoints.remove(endpointId)
       null
