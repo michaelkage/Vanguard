@@ -107,7 +107,7 @@ describe("verified event ingress", () => {
     }));
 
     await vi.waitFor(() => {
-      expect(storeVerifiedEvent).toHaveBeenCalledOnce();
+      expect(onAccepted).toHaveBeenCalledOnce();
     });
 
     const [storedEnvelope, , storageOptions] =
