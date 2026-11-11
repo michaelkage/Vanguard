@@ -284,20 +284,25 @@ class VanguardNearbyModule : Module() {
 
   private fun missingPermissions(context: Context): List<String> {
     val required = buildList {
-      if (Build.VERSION.SDK_INT >= 31) {
-        add(Manifest.permission.BLUETOOTH_SCAN)
-        add(Manifest.permission.BLUETOOTH_CONNECT)
-        add(Manifest.permission.BLUETOOTH_ADVERTISE)
-      } else if (Build.VERSION.SDK_INT >= 23) {
-        add(Manifest.permission.ACCESS_COARSE_LOCATION)
-      }
-
-      if (Build.VERSION.SDK_INT in 29..31) {
-        add(Manifest.permission.ACCESS_FINE_LOCATION)
-      }
-
-      if (Build.VERSION.SDK_INT >= 32) {
-        add(Manifest.permission.NEARBY_WIFI_DEVICES)
+      when {
+        Build.VERSION.SDK_INT >= 33 -> {
+          add(Manifest.permission.BLUETOOTH_SCAN)
+          add(Manifest.permission.BLUETOOTH_CONNECT)
+          add(Manifest.permission.BLUETOOTH_ADVERTISE)
+          add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        }
+        Build.VERSION.SDK_INT >= 31 -> {
+          add(Manifest.permission.BLUETOOTH_SCAN)
+          add(Manifest.permission.BLUETOOTH_CONNECT)
+          add(Manifest.permission.BLUETOOTH_ADVERTISE)
+          add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        Build.VERSION.SDK_INT >= 29 -> {
+          add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        Build.VERSION.SDK_INT >= 23 -> {
+          add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
       }
     }
 
