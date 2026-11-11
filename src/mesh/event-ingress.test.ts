@@ -130,6 +130,26 @@ describe("verified event ingress", () => {
     expect(harness.isDetached()).toBe(true);
   });
 
+  it("rejects an invalid signature before consulting author trust", async () => {
+    const harness = createTransportHarness();
+    const signatureVerifier = { verify: vi.fn().mockResolvedValue(false) };
+    const authorTrustPolicy = { isTrustedAuthor: vi.fn().mockResolvedValue(true) };
+    const onRejected = vi.fn();
+
+    attachVerifiedEventIngress(harness.transport, {
+      signatureVerifier,
+      authorTrustPolicy,
+      onRejected
+    });
+    harness.emit("peer-a", encodeRelayPacket(envelope, { hopCount: 1 }));
+
+    await vi.waitFor(() => {
+      expect(onRejected).toHaveBeenCalledWith("peer-a", "signature_or_author_rejected");
+    });
+    expect(signatureVerifier.verify).toHaveBeenCalledOnce();
+    expect(authorTrustPolicy.isTrustedAuthor).not.toHaveBeenCalled();
+  });
+
   it("does not persist a packet rejected by the author trust policy", async () => {
     const harness = createTransportHarness();
     const signatureVerifier = { verify: vi.fn().mockResolvedValue(true) };
