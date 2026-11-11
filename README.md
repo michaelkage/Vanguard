@@ -11,7 +11,8 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 - Expo SQLite with SQLCipher for encrypted local event storage.
 - Expo SecureStore for the SQLCipher database key.
 - A 50 MiB logical event-payload budget; expired events and oldest server-confirmed events are pruned before rejecting new storage. Pending/unconfirmed events are never silently discarded. SQLite page files and WAL overhead mean this is not a hard physical disk-usage ceiling.
-- Native Android key custody and Google Nearby Connections behind application interfaces.
+- Native Android Ed25519 identity module; private PKCS#8 bytes are AES-GCM encrypted at rest with an Android Keystore-managed wrapping key.
+- A transport interface for the future Google Nearby Connections implementation.
 - Supabase Postgres and Edge Functions as the authoritative synchronization and policy boundary.
 
 ## Repository structure
@@ -19,6 +20,7 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 - src/protocol — TypeScript transport-envelope validation and relay policy. Kotlin remains the protocol v1 reference until cross-language vectors prove parity.
 - src/storage — SQLCipher database bootstrap and verified-event/outbox repository.
 - src/mesh — transport interface; native Android transport is a separate implementation milestone.
+- modules/vanguard-identity — local Expo module for native Android Ed25519 key generation, signing, verification, and deletion.
 - protocol-core — existing Kotlin/JVM protocol reference and tests.
 - android-runtime — existing Room storage foundation, retained during the migration for comparison and parity testing.
 - protocol — protocol contract and roadmap.
@@ -27,7 +29,7 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 ## Requirements
 
 - Node.js 22.13 or newer.
-- JDK 17 and Android SDK for the retained Kotlin/Android modules.
+- JDK 17 and Android SDK for Android builds.
 - A physical Android device for Nearby Connections, permissions, radio-state, background execution, and Keystore validation.
 
 ## Commands
@@ -38,6 +40,7 @@ npx expo install --fix
 npm run typecheck
 npm test
 npm run doctor
+npx expo prebuild --platform android
 npm run android
 ```
 
@@ -45,13 +48,13 @@ The app requires a development build. Expo Go is not sufficient for custom nativ
 
 ## Security status
 
-The SQLCipher database is encrypted at rest using a random key held by SecureStore. The private event-signing key is not implemented in the JavaScript layer. The event repository fails closed unless a cryptographic verifier is supplied.
+The SQLCipher database is encrypted at rest using a random key held by SecureStore. The identity module keeps Ed25519 private-key material out of JavaScript and encrypts it at rest with AES-256-GCM under an Android Keystore key. During signing, the private key is decrypted in native process memory. This is not equivalent to a non-exportable hardware-backed Ed25519 key, and the current module does not yet enforce biometric authentication.
 
 A valid signature proves control of a key, not real-world identity or campus enrollment. Passkeys are reserved for account authentication; they are not treated as general-purpose offline event-signing keys. Relay metadata is mutable and is never included in the author's signed envelope. Offline vouches remain provisional until the backend validates them.
 
 ## Not yet production-ready
 
-Native Android Keystore signing, the Android Nearby Connections implementation, enrollment and key revocation, authenticated/encrypted peer sessions, Supabase ingestion and per-event acknowledgements, push notifications, authoritative PlugScore policy, and real-device acceptance tests remain to be implemented.
+The Android identity module needs an Android build and physical-device validation. Biometric authorization, Nearby Connections, enrollment and key revocation, authenticated/encrypted peer sessions, Supabase ingestion and per-event acknowledgements, push notifications, authoritative PlugScore policy, and real-device relay acceptance tests remain to be implemented.
 
 Do not use this foundation for payments, emergency services, or high-value authorization.
 
