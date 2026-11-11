@@ -15,6 +15,7 @@ sourceSets {
 dependencies {
     testImplementation(kotlin("test-junit5"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
+    testImplementation("org.json:json:20250517")
 }
 
 tasks.test {
