@@ -45,7 +45,7 @@ npx expo prebuild --platform android
 npm run android
 ```
 
-The app requires a development build. Expo Go is not sufficient for custom native functionality. `NearbyMeshSession` owns advertising, discovery, verified ingress, connection approval, and teardown. Incoming connection requests are never accepted automatically; callers must explicitly accept or reject them. The Android session factory requires an injected author-trust policy and intentionally does not supply a permissive default. `createNativeCampusAuthorRegistry` composes native Ed25519 verification with the SQLCipher-backed snapshot cache; its pinned server public key and campus ID must be supplied by the app configuration.
+The app requires a development build. Expo Go is not sufficient for custom native functionality. `NearbyMeshSession` owns advertising, discovery, verified ingress, connection approval, and teardown. Incoming connection requests are never accepted automatically; callers must explicitly accept or reject them. The generic Android session factory requires an injected author-trust policy and intentionally does not supply a permissive default. `createAndroidCampusMeshSession` composes native Ed25519 event verification, a campus registry policy, and the SQLCipher-backed snapshot cache; the campus ID, pinned server public key, maximum snapshot age, and rollback-aware clock must be supplied by app configuration. The caller must fetch and install a valid signed snapshot before any author is trusted.
 
 ## Security status
 
