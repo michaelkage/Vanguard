@@ -66,3 +66,12 @@ Events remain pending until the Supabase gateway returns an explicit per-event a
 - No global offline rate-limit guarantee.
 - No guaranteed 3-second/20-second background radio schedule.
 - No production claims for enrollment, revocation, encrypted peer sessions, Supabase sync, or PlugScore until those flows exist and pass device/server tests.
+
+
+## Decision 9 — Campus author registry snapshots
+
+Campus trust is established by a server-authorized device-key registry, not by the event signature alone. The client accepts only versioned Ed25519-signed snapshots whose signature verifies against a public key pinned by the application. The signature covers a domain-separated canonical representation of the campus ID, monotonic sequence, issue/expiry times, and a uniquely sorted list of public keys with active, suspended, or revoked status.
+
+The client rejects unknown campuses, malformed or unsorted entries, invalid signatures, expired or stale snapshots, materially future-issued snapshots, sequence rollback, and same-sequence content changes. A cached snapshot is re-verified after process restart and is no longer trusted after its freshness window expires. Snapshot persistence uses the SQLCipher database and is monotonic per campus.
+
+This is the client-side verification and cache boundary only. It does not implement campus enrollment, server-side key binding, registry issuance, key rotation APIs, or revocation publication. Those remain backend work. The server signing key must be provisioned/pinned by the application; a key supplied by the snapshot itself is never trusted.
