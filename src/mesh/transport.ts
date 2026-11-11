@@ -69,7 +69,7 @@ function mapConnectionRequest(request: ConnectionRequest): NearbyConnectionReque
 function mapPayload(payload: NearbyPayload): { deviceId: string; bytes: Uint8Array } {
   return {
     deviceId: payload.endpointId,
-    bytes: decodeBytesBase64Url(payload.payloadBase64Url)
+    payload: decodeBytesBase64Url(payload.payloadBase64Url)
   };
 }
 
@@ -84,7 +84,7 @@ export class AndroidNearbyTransport implements NearbyTransport {
   private readonly peerListeners = new Set<Listener<NearbyPeer>>();
   private readonly peerLostListeners = new Set<Listener<string>>();
   private readonly connectionRequestListeners = new Set<Listener<NearbyConnectionRequest>>();
-  private readonly payloadListeners = new Set<Listener<{ deviceId: string; payload: Uint8Array }>>();
+  private readonly payloadListeners = new Set<(deviceId: string, payload: Uint8Array) => void>();
   private readonly transferListeners = new Set<Listener<NearbyTransferUpdate>>();
   private readonly errorListeners = new Set<Listener<{ code: string; deviceId?: string }>>();
   private readonly subscriptions: Array<{ remove(): void }>;
@@ -119,7 +119,7 @@ export class AndroidNearbyTransport implements NearbyTransport {
       }),
       VanguardNearby.addPayloadListener(payload => {
         const mapped = mapPayload(payload);
-        this.payloadListeners.forEach(listener => listener(mapped));
+        this.payloadListeners.forEach(listener => listener(mapped.deviceId, mapped.payload));
       }),
       VanguardNearby.addPayloadTransferListener(update => {
         this.transferListeners.forEach(listener => listener({
@@ -206,7 +206,7 @@ export class AndroidNearbyTransport implements NearbyTransport {
     return () => this.connectionRequestListeners.delete(listener);
   }
 
-  addPayloadListener(listener: Listener<{ deviceId: string; payload: Uint8Array }>): () => void {
+  addPayloadListener(listener: (deviceId: string, payload: Uint8Array) => void): () => void {
     this.payloadListeners.add(listener);
     return () => this.payloadListeners.delete(listener);
   }
