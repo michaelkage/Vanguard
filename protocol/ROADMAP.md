@@ -37,7 +37,10 @@
 - [ ] Build and validate the Expo Android application with the native module
 - [ ] Add biometric authorization for key use
 - [ ] Verify Kotlin/TypeScript/native signature bytes against shared protocol test vectors
-- [ ] Implement Google Nearby Connections behind the TypeScript transport interface
+- [x] Implement native Android Google Nearby Connections behind the TypeScript transport interface
+- [x] Add Android Nearby permission declarations and runtime permission checks
+- [x] Add explicit connection acceptance/rejection and authentication-digit callbacks
+- [x] Bound Vanguard byte payloads to 24 KiB and expose transfer callbacks
 - [ ] Handle permission denial, disabled radios, reconnects, lifecycle, and bounded payloads
 - [ ] Validate two physical Android devices and Android-to-iOS interoperability policy
 - [ ] Add authenticated peer sessions and end-to-end encrypted direct messages
