@@ -70,7 +70,7 @@ describe("relay packet framing", () => {
   });
 
   it("rejects malformed and oversized transport frames", () => {
-    expect(() => decodeRelayPacket(new TextEncoder().encode("{"))).toThrow(
+    expect(() => decodeRelayPacket(Uint8Array.of(123))).toThrow(
       "Relay packet is not valid UTF-8 JSON"
     );
     expect(() => decodeRelayPacket(new Uint8Array(24 * 1024 + 1))).toThrow(
@@ -177,7 +177,7 @@ describe("verified event ingress", () => {
       onRejected
     });
 
-    harness.emit("peer-a", new TextEncoder().encode("{"));
+    harness.emit("peer-a", Uint8Array.of(123));
 
     await vi.waitFor(() => {
       expect(onRejected).toHaveBeenCalledWith("peer-a", "invalid_packet");
