@@ -5,7 +5,7 @@ const validEnvelope: SignedEventEnvelope = {
   version: 1,
   id: "A".repeat(43),
   type: "message.created",
-  authorPublicKey: "B".repeat(44),
+  authorPublicKey: "B".repeat(59),
   createdAtEpochMs: 1_000,
   expiresAtEpochMs: 10_000,
   payloadCanonicalJson: "{\"body\":\"hello\"}",
