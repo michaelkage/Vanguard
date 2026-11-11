@@ -59,4 +59,4 @@ The native Android identity and Nearby modules compile as part of the generated 
 
 Do not use this foundation for payments, emergency services, or high-value authorization.
 
-See protocol/PROTOCOL.md, protocol/ROADMAP.md, and docs/ARCHITECTURE_DECISIONS.md.
+See protocol/PROTOCOL.md, protocol/AUTHOR_REGISTRY.md, protocol/ROADMAP.md, and docs/ARCHITECTURE_DECISIONS.md.
