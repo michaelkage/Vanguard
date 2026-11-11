@@ -64,7 +64,7 @@
 
 ## Milestone 6 — Supabase gateway and campus identity
 - [ ] Implement authenticated enrollment and campus membership binding
-- [ ] Add device-key registry, rotation, revocation, and revocation snapshot freshness
+- [x] Verify pinned-server-signed campus author snapshots and cache them monotonically in SQLCipher on the client\n- [ ] Implement the server-side device-key registry, enrollment, rotation, revocation, and snapshot issuance
 - [ ] Implement Edge Function ingestion with strict schema and server-side signature verification
 - [ ] Make event insertion idempotent and return per-event acknowledgements
 - [ ] Add encrypted message relay and privacy-safe push notifications
