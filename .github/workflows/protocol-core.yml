@@ -59,5 +59,5 @@ jobs:
       - name: Run application tests
         run: npm test
 
-      - name: Validate Expo project
-        run: npx expo-doctor
+      - name: Validate Expo SDK dependencies
+        run: npm run doctor
