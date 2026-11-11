@@ -16,6 +16,11 @@ const config: ExpoConfig = {
     adaptiveIcon: { backgroundColor: "#101820" }
   },
   plugins: [
+    ["expo-build-properties", {
+      android: {
+        kotlinVersion: "2.4.20"
+      }
+    }],
     ["expo-sqlite", { useSQLCipher: true }],
     ["expo-secure-store", {
       configureAndroidBackup: true,
