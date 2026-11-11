@@ -153,7 +153,7 @@ class VanguardNearbyModule : Module() {
       missingPermissions(context)
     }
 
-    AsyncFunction("startAdvertising") { serviceId: String, endpointName: String ->
+    AsyncFunction("startAdvertising") Coroutine { serviceId: String, endpointName: String ->
       validateServiceId(serviceId)
       requireRadioPermissions()
       val nearby = getClient()
@@ -169,7 +169,7 @@ class VanguardNearbyModule : Module() {
       null
     }
 
-    AsyncFunction("startDiscovery") { serviceId: String ->
+    AsyncFunction("startDiscovery") Coroutine { serviceId: String ->
       validateServiceId(serviceId)
       requireRadioPermissions()
       val nearby = getClient()
@@ -183,27 +183,27 @@ class VanguardNearbyModule : Module() {
       null
     }
 
-    AsyncFunction("requestConnection") { endpointId: String ->
+    AsyncFunction("requestConnection") Coroutine { endpointId: String ->
       requireRadioPermissions()
       require(endpointId in discoveredEndpoints) { "Endpoint is not currently discovered" }
       getClient().requestConnection(localEndpointName, endpointId, lifecycleCallback).await()
       null
     }
 
-    AsyncFunction("acceptConnection") { endpointId: String ->
+    AsyncFunction("acceptConnection") Coroutine { endpointId: String ->
       require(endpointId in pendingEndpoints) { "No pending connection request for this endpoint" }
       getClient().acceptConnection(endpointId, payloadCallback).await()
       null
     }
 
-    AsyncFunction("rejectConnection") { endpointId: String ->
+    AsyncFunction("rejectConnection") Coroutine { endpointId: String ->
       require(endpointId in pendingEndpoints) { "No pending connection request for this endpoint" }
       getClient().rejectConnection(endpointId).await()
       pendingEndpoints.remove(endpointId)
       null
     }
 
-    AsyncFunction("sendBytes") { endpointId: String, payloadBase64Url: String ->
+    AsyncFunction("sendBytes") Coroutine { endpointId: String, payloadBase64Url: String ->
       require(endpointId in connectedEndpoints) { "Endpoint is not connected" }
       val bytes = decodeUrl(payloadBase64Url)
       require(bytes.isNotEmpty() && bytes.size <= MAX_PACKET_BYTES) {
