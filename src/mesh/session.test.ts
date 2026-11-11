@@ -7,6 +7,11 @@ import type {
 } from "./transport";
 import { NearbyMeshSession, type MeshSessionCallbacks } from "./session";
 
+vi.mock("../storage/event-repository", () => ({
+  EventVerificationError: class EventVerificationError extends Error {},
+  storeVerifiedEvent: vi.fn().mockResolvedValue(true)
+}));
+
 function createTransportHarness(overrides: Partial<NearbyTransport> = {}) {
   const peerListeners = new Set<(peer: NearbyPeer) => void>();
   const peerLostListeners = new Set<(deviceId: string) => void>();
