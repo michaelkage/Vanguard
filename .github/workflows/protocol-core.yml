@@ -89,6 +89,12 @@ jobs:
         env:
           EXPO_NO_TELEMETRY: "1"
 
+      - name: Verify generated Kotlin compiler pin
+        working-directory: android
+        run: |
+          grep -q '^android.kotlinVersion=2.4.20$' gradle.properties
+          grep -q 'kotlin-gradle-plugin' build.gradle
+
       - name: Compile Android application and local native modules
         working-directory: android
         run: ./gradlew :app:compileDebugKotlin
