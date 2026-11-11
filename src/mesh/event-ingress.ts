@@ -140,6 +140,9 @@ export function decodeRelayPacket(bytes: Uint8Array): RelayPacket {
  * Attaches bounded, fail-closed mesh ingress. An event is persisted only after
  * its Ed25519 signature and the caller-supplied campus key policy both pass.
  * The author key policy must account for offline revocation-snapshot freshness.
+ * Hop count is unauthenticated relay metadata: this enforces a local ceiling,
+ * not proof of the packet's true route length. A malicious peer can reset it
+ * until authenticated relay provenance is implemented.
  */
 export function attachVerifiedEventIngress(
   transport: NearbyTransport,
@@ -187,7 +190,7 @@ export function attachVerifiedEventIngress(
 
     const verifier: SignatureVerifier = {
       verify: async envelope => {
-        if (!(await options.signatureVerifier.verify(envelope))) return false;
+        if (disposed || !(await options.signatureVerifier.verify(envelope))) return false;
         const trusted = await options.authorTrustPolicy.isTrustedAuthor(
           envelope.authorPublicKey,
           receivedAt
