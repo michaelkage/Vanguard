@@ -19,7 +19,7 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 
 - src/protocol — TypeScript transport-envelope validation and relay policy. Kotlin remains the protocol v1 reference until cross-language vectors prove parity.
 - src/storage — SQLCipher database bootstrap and verified-event/outbox repository.
-- src/mesh — Android transport adapter, bounded relay-packet framing, and fail-closed verified ingress.
+- src/mesh — Android transport adapter, bounded relay-packet framing, native Ed25519 verification adapter, and fail-closed verified ingress.
 - modules/vanguard-identity — local Expo module for native Android Ed25519 key generation, signing, verification, and deletion.
 - modules/vanguard-nearby — local Expo module for Android peer discovery, connection lifecycle, and bounded byte transport.
 - protocol-core — existing Kotlin/JVM protocol reference and tests.
