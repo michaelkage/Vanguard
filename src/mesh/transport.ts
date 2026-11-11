@@ -88,6 +88,7 @@ export class AndroidNearbyTransport implements NearbyTransport {
   private readonly transferListeners = new Set<Listener<NearbyTransferUpdate>>();
   private readonly errorListeners = new Set<Listener<{ code: string; deviceId?: string }>>();
   private readonly subscriptions: Array<{ remove(): void }>;
+  private permissionRequest: Promise<void> | undefined;
 
   constructor() {
     if (Platform.OS !== "android") {
@@ -231,8 +232,23 @@ export class AndroidNearbyTransport implements NearbyTransport {
     this.errorListeners.clear();
   }
 
-  private async ensurePermissions(): Promise<void> {
-    const granted = await requestVanguardNearbyPermissions();
-    if (!granted) throw new Error("Nearby permissions were denied");
+  private ensurePermissions(): Promise<void> {
+    // Advertising and discovery start together. Share one in-flight Android
+    // permission prompt rather than racing two requestMultiple() calls.
+    // The promise is cleared on both success and failure so later starts
+    // re-check permissions (which may have been revoked in system settings).
+    if (this.permissionRequest) return this.permissionRequest;
+
+    const request = (async () => {
+      const granted = await requestVanguardNearbyPermissions();
+      if (!granted) throw new Error("Nearby permissions were denied");
+    })();
+    this.permissionRequest = request;
+
+    const clearRequest = () => {
+      if (this.permissionRequest === request) this.permissionRequest = undefined;
+    };
+    void request.then(clearRequest, clearRequest);
+    return request;
   }
 }
