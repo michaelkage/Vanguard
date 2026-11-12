@@ -475,7 +475,7 @@ object AuthenticatedSessionProtocol {
             "Peer-session identity keys must be distinct"
         }
 
-        val ephemeral = generateX25519(secureRandom)
+        val ephemeral = generateX25519(secureRandom, cryptoProvider)
         try {
             val responderNonce = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)
             require(!responderNonce.contentEquals(hello.initiatorNonce)) {
