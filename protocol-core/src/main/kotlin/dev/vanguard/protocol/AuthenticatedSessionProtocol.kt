@@ -705,7 +705,7 @@ object AuthenticatedSessionProtocol {
             var ciphertext: ByteArray? = null
             try {
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                cipher.init( Cipher.ENCRYPT_MODE, SecretKeySpec(sendKey, "AES"), GCMParameterSpec(128, packetNonce))
+                cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(sendKey, "AES"), GCMParameterSpec(128, packetNonce))
                 cipher.updateAAD(aad)
                 ciphertext = cipher.doFinal(plaintextSnapshot)
                 val packet = ByteBuffer.allocate(PACKET_HEADER_BYTES + ciphertext.size)
@@ -726,6 +726,9 @@ object AuthenticatedSessionProtocol {
         @Synchronized
         fun decrypt(packet: ByteArray): ByteArray {
             checkOpen()
+            require(packet.size in (PACKET_HEADER_BYTES + GCM_TAG_BYTES)..MAX_PACKET_BYTES) {
+                "Peer-session packet has an invalid length"
+            }
             val frame = packet.copyOf()
             var ciphertext: ByteArray? = null
             var packetNonce: ByteArray? = null

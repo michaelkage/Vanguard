@@ -394,6 +394,12 @@ class AuthenticatedSessionProtocolTest {
             assertFailsWith<IllegalArgumentException> {
                 initiator.encrypt(ByteArray(AuthenticatedSessionProtocol.MAX_PLAINTEXT_BYTES + 1))
             }
+            assertFailsWith<IllegalArgumentException> {
+                responder.decrypt(ByteArray(AuthenticatedSessionProtocol.MAX_PACKET_BYTES + 1))
+            }
+            assertFailsWith<IllegalArgumentException> {
+                responder.decrypt(ByteArray(AuthenticatedSessionProtocol.PACKET_HEADER_BYTES))
+            }
         } finally {
             initiator.close()
             responder.close()
