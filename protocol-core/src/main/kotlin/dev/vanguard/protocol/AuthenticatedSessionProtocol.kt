@@ -355,7 +355,7 @@ object AuthenticatedSessionProtocol {
                     "Invalid peer-session response signature length"
                 }
                 validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", cryptoProvider)
-                validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
+                validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519", cryptoProvider)
                 require(!response.identityPublicKeySpki.contentEquals(localIdentityKey)) {
                     "Peer-session identity keys must be distinct"
                 }
