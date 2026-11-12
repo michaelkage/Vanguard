@@ -4,6 +4,7 @@ import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.Signature
 import java.util.Base64
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -104,6 +105,52 @@ class AuthenticatedSessionProtocolTest {
         session.close()
         accepted.session.close()
         pending.close()
+    }
+
+    @Test
+    fun `handshake and packet crypto work with an explicitly injected Bouncy Castle provider`() {
+        val provider = BouncyCastleProvider()
+        val initiator = TestIdentity()
+        val responder = TestIdentity()
+        val initiatorTime = timePolicy()
+        val responderTime = timePolicy()
+        val pending = AuthenticatedSessionProtocol.begin(
+            initiator,
+            initiatorTime,
+            cryptoProvider = provider
+        )
+        try {
+            val helloFrame = AuthenticatedSessionProtocol.encodeHelloFrame(pending.hello, provider)
+            val hello = AuthenticatedSessionProtocol.decodeHelloFrame(helloFrame, provider)
+            val accepted = AuthenticatedSessionProtocol.accept(
+                hello,
+                responder,
+                verifier,
+                trusted,
+                ReplayGuard(),
+                responderTime,
+                cryptoProvider = provider
+            )
+            try {
+                val responseFrame = AuthenticatedSessionProtocol.encodeResponseFrame(accepted.response, provider)
+                val response = AuthenticatedSessionProtocol.decodeResponseFrame(responseFrame, provider)
+                val initiatorSession = pending.complete(response, verifier, trusted)
+                try {
+                    val message = byteArrayOf(0, 1, 0xff.toByte(), 0x80.toByte(), 42)
+                    assertContentEquals(message, accepted.session.decrypt(initiatorSession.encrypt(message)))
+                    assertContentEquals(
+                        "provider path".toByteArray(),
+                        initiatorSession.decrypt(accepted.session.encrypt("provider path".toByteArray()))
+                    )
+                } finally {
+                    initiatorSession.close()
+                }
+            } finally {
+                accepted.session.close()
+            }
+        } finally {
+            pending.close()
+        }
     }
 
     @Test
