@@ -1,6 +1,6 @@
 # Authenticated peer-session reference v2
 
-Status: Kotlin/JVM reference implementation; Android transport integration is not complete.
+Status: shared Kotlin protocol core with JVM reference tests and Android module compilation; native handshake orchestration and Nearby integration are not complete.
 
 Ed25519 authenticates the handshake transcript. Fresh X25519 ephemeral key pairs derive session traffic keys. The Ed25519 signing key is never used for key agreement.
 
@@ -49,6 +49,14 @@ Encrypted packets contain a 1-byte version, 8-byte sequence, and AES-GCM ciphert
 
 Secret arrays are cleared best-effort after use and on session close. Provider-owned copies may remain until garbage collection; this is not hardware-isolated secret storage.
 
+## Android provider integration
+
+The shared protocol-core Kotlin sources are compiled into the Android identity module. The handshake API accepts an explicitly supplied JCA Provider for Ed25519/X25519 key parsing, X25519 key generation, and key agreement. Android supplies Bouncy Castle directly; no process-global provider registration is performed. The Android path avoids java.util.Base64 and resolves NamedParameterSpec reflectively only for the JDK-default provider path, keeping the injected-provider path compatible with the module's API 23 floor.
+
+The native identity module exposes byte-oriented Ed25519 signing and verification. JavaScript passes opaque bytes as canonical unpadded base64url; the native signer decodes them and signs the original bytes without UTF-8 conversion. Private key material remains inside the native module.
+
+These are compatibility and compilation steps, not proof of Android cryptographic provider compatibility on physical devices. The app does not yet invoke the shared handshake protocol or bind its resulting session to Nearby.
+
 ## Implemented
 
 - Ed25519-authenticated v2 transcript and fixed-width binary codec.
@@ -61,7 +69,8 @@ Secret arrays are cleared best-effort after use and on session close. Provider-o
 
 ## Not implemented
 
-- Native Android identity-provider adapter or Android provider/device compatibility validation.
+- Native Android handshake/session manager that composes the identity signer, provider, author registry, replay guard, and clock.
+- Android provider/device compatibility validation on the minimum and current supported Android versions.
 - Nearby connection lifecycle integration.
 - Durable replay state or rollback-resistant time anchor across process restarts.
 - Handshake cancellation/timeouts, key confirmation, or rekey policy.
