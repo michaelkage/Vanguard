@@ -239,6 +239,30 @@ class AuthenticatedSessionProtocolTest {
     }
 
     @Test
+    fun `tampered responder transcript signature is rejected`() {
+        val initiator = TestIdentity()
+        val responder = TestIdentity()
+        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val accepted = AuthenticatedSessionProtocol.accept(
+            pending.hello,
+            responder,
+            verifier,
+            trusted,
+            ReplayGuard()
+        )
+        val tamperedResponse = accepted.response.copy(
+            signature = accepted.response.signature.copyOf().also {
+                it[it.lastIndex] = (it.last().toInt() xor 1).toByte()
+            }
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            pending.complete(tamperedResponse, verifier, trusted)
+        }
+        accepted.session.close()
+    }
+
+    @Test
     fun `untrusted initiator is rejected before replay state is consumed`() {
         val initiator = TestIdentity()
         val responder = TestIdentity()
