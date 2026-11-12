@@ -52,7 +52,14 @@
 - [ ] Handle permission denial UX, disabled radios, reconnects, and lifecycle
 - [ ] Validate session startup/shutdown, connection approval, and recovery on physical Android devices
 - [ ] Validate two physical Android devices and Android-to-iOS interoperability policy
-- [ ] Add authenticated peer sessions and end-to-end encrypted direct messages
+- [x] Add Kotlin/JVM reference for Ed25519-authenticated ephemeral X25519 peer handshakes
+- [x] Derive directional AES-256-GCM traffic keys with HKDF-SHA-256 and transcript binding
+- [x] Add strict per-direction packet sequencing, replay rejection, and bounded 24 KiB framing
+- [ ] Add bounded handshake wire codec and native identity-provider adapter
+- [ ] Integrate authenticated session state with Android Nearby connection lifecycle
+- [ ] Add bounded replay-guard implementation and lifecycle/timeout policy
+- [ ] Validate two-device handshake, rekey, disconnect, and message exchange
+- [ ] Integrate end-to-end encrypted direct messages with durable message storage
 
 ## Milestone 5 — store-carry-forward acceptance
 - [x] Verify event signatures and author-trust policy before persistence on the Nearby ingress path
