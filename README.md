@@ -17,15 +17,16 @@ The product goal is store-carry-forward communication: nearby devices exchange s
 
 ## Repository structure
 
-- src/protocol — TypeScript transport-envelope validation and relay policy. Kotlin remains the protocol v1 reference until cross-language vectors prove parity.
-- src/storage — SQLCipher database bootstrap, verified-event/outbox repository, and monotonic campus registry snapshot cache.
-- src/mesh — Android transport adapter, lifecycle-managed advertising/discovery and explicit connection approval, bounded relay-packet framing, native Ed25519 verification adapter, and fail-closed verified ingress.
-- src/identity — native signing composition and fail-closed verification of pinned-server-signed campus author registry snapshots.\n- modules/vanguard-identity — local Expo module for native Android Ed25519 key generation, signing, verification, and deletion.
-- modules/vanguard-nearby — local Expo module for Android peer discovery, connection lifecycle, and bounded byte transport.
-- protocol-core — existing Kotlin/JVM protocol reference and tests.
-- android-runtime — existing Room storage foundation, retained during the migration for comparison and parity testing.
-- protocol — protocol contract and roadmap.
-- docs/ARCHITECTURE_DECISIONS.md — accepted engineering decisions and explicit security boundaries.
+- `src/protocol` — TypeScript transport-envelope validation and relay policy. Kotlin remains the protocol v1 reference until cross-language vectors prove parity.
+- `src/storage` — SQLCipher database bootstrap, verified-event/outbox repository, and monotonic campus registry snapshot cache.
+- `src/mesh` — Android transport adapter, lifecycle-managed advertising/discovery and explicit connection approval, bounded relay-packet framing, native Ed25519 verification adapter, and fail-closed verified ingress.
+- `src/identity` — native signing composition and fail-closed verification of pinned-server-signed campus author registry snapshots.
+- `modules/vanguard-identity` — local Expo module for native Android Ed25519 key generation, signing, verification, and deletion.
+- `modules/vanguard-nearby` — local Expo module for Android peer discovery, connection lifecycle, and bounded byte transport.
+- `protocol-core` — existing Kotlin/JVM protocol reference and tests.
+- `android-runtime` — existing Room storage foundation, retained during the migration for comparison and parity testing.
+- `protocol` — protocol contract and roadmap.
+- `docs/ARCHITECTURE_DECISIONS.md` — accepted engineering decisions and explicit security boundaries.
 
 ## Requirements
 
@@ -59,4 +60,4 @@ The native Android identity and Nearby modules compile as part of the generated 
 
 Do not use this foundation for payments, emergency services, or high-value authorization.
 
-See protocol/PROTOCOL.md, protocol/AUTHOR_REGISTRY.md, protocol/ROADMAP.md, and docs/ARCHITECTURE_DECISIONS.md.
+See `protocol/PROTOCOL.md`, `protocol/AUTHOR_REGISTRY.md`, `protocol/ROADMAP.md`, and `docs/ARCHITECTURE_DECISIONS.md`.
