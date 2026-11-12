@@ -173,9 +173,9 @@ object AuthenticatedSessionProtocol {
     }
 
     /** Fixed-width, versioned binary framing for the two handshake messages. */
-    fun encodeHelloFrame(candidate: Hello, x25519Provider: Provider? = null): ByteArray {
+    fun encodeHelloFrame(candidate: Hello, cryptoProvider: Provider? = null): ByteArray {
         val hello = copyHello(candidate)
-        validateHello(hello, x25519Provider)
+        validateHello(hello, cryptoProvider)
         return ByteArrayOutputStream().use { output ->
             DataOutputStream(output).use { data ->
                 data.write(HANDSHAKE_MAGIC)
@@ -192,7 +192,7 @@ object AuthenticatedSessionProtocol {
         }.also { require(it.size <= MAX_PACKET_BYTES) { "Handshake frame exceeds packet limit" } }
     }
 
-    fun decodeHelloFrame(frame: ByteArray, x25519Provider: Provider? = null): Hello {
+    fun decodeHelloFrame(frame: ByteArray, cryptoProvider: Provider? = null): Hello {
         val input = openHandshakeFrame(frame, 1)
         val version = input.readInt()
         val createdAtEpochMs = input.readLong()
@@ -206,7 +206,7 @@ object AuthenticatedSessionProtocol {
             readExact(input, ED25519_SIGNATURE_BYTES)
         )
         require(input.available() == 0) { "Handshake hello contains trailing bytes" }
-        validateHello(hello, x25519Provider)
+        validateHello(hello, cryptoProvider)
         return hello
     }
 
@@ -229,7 +229,7 @@ object AuthenticatedSessionProtocol {
         }.also { require(it.size <= MAX_PACKET_BYTES) { "Handshake frame exceeds packet limit" } }
     }
 
-    fun decodeResponseFrame(frame: ByteArray, x25519Provider: Provider? = null): Response {
+    fun decodeResponseFrame(frame: ByteArray, cryptoProvider: Provider? = null): Response {
         val input = openHandshakeFrame(frame, 2)
         val response = Response(
             input.readInt(),
@@ -241,7 +241,7 @@ object AuthenticatedSessionProtocol {
             readExact(input, ED25519_SIGNATURE_BYTES)
         )
         require(input.available() == 0) { "Handshake response contains trailing bytes" }
-        validateResponseShape(response, x25519Provider)
+        validateResponseShape(response, cryptoProvider)
         return response
     }
 
@@ -258,7 +258,7 @@ object AuthenticatedSessionProtocol {
     private fun readExact(input: DataInputStream, length: Int): ByteArray =
         ByteArray(length).also(input::readFully)
 
-    private fun validateResponseShape(response: Response, x25519Provider: Provider? = null) {
+    private fun validateResponseShape(response: Response, cryptoProvider: Provider? = null) {
         require(response.version == VERSION) { "Unsupported peer-session version" }
         require(response.sessionId.size == SESSION_ID_BYTES) { "Invalid peer-session ID" }
         validateNonce(response.initiatorNonce, "initiator nonce")
@@ -266,8 +266,8 @@ object AuthenticatedSessionProtocol {
         require(!response.responderNonce.contentEquals(response.initiatorNonce)) {
             "Peer-session nonces must be distinct"
         }
-        validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", x25519Provider)
-        validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
+        validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", cryptoProvider)
+        validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519", cryptoProvider)
         require(response.signature.size == ED25519_SIGNATURE_BYTES) {
             "Invalid peer-session response signature length"
         }
@@ -321,7 +321,7 @@ object AuthenticatedSessionProtocol {
         private val ephemeralPrivateKey: PrivateKey,
         localIdentityPublicKey: ByteArray,
         private val timePolicy: HandshakeTimePolicy,
-        private val x25519Provider: Provider?
+        private val cryptoProvider: Provider?
     ) : AutoCloseable {
         private val helloSnapshot = copyHello(hello)
         private val localIdentityKey = localIdentityPublicKey.copyOf()
@@ -354,7 +354,7 @@ object AuthenticatedSessionProtocol {
                 require(response.signature.size == ED25519_SIGNATURE_BYTES) {
                     "Invalid peer-session response signature length"
                 }
-                validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", x25519Provider)
+                validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", cryptoProvider)
                 validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
                 require(!response.identityPublicKeySpki.contentEquals(localIdentityKey)) {
                     "Peer-session identity keys must be distinct"
@@ -379,7 +379,7 @@ object AuthenticatedSessionProtocol {
 
                 timePolicy.validateCreatedAt(hello.createdAtEpochMs)
                 val transcript = transcriptHash(hello, response)
-                val sharedSecret = agree(ephemeralPrivateKey, response.ephemeralPublicKeySpki, x25519Provider)
+                val sharedSecret = agree(ephemeralPrivateKey, response.ephemeralPublicKeySpki, cryptoProvider)
                 try {
                     return deriveSession(sharedSecret, transcript, Role.INITIATOR,
                         response.identityPublicKeySpki.copyOf())
@@ -405,12 +405,12 @@ object AuthenticatedSessionProtocol {
         identity: IdentitySigner,
         timePolicy: HandshakeTimePolicy,
         secureRandom: SecureRandom = random,
-        x25519Provider: Provider? = null
+        cryptoProvider: Provider? = null
     ): PendingInitiatorHandshake {
         val createdAtEpochMs = timePolicy.captureNow()
         val identityPublicKey = identity.publicKeySpki.copyOf()
-        validatePublicKey(identityPublicKey, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
-        val ephemeral = generateX25519(secureRandom, x25519Provider)
+        validatePublicKey(identityPublicKey, ED25519_PUBLIC_KEY_BYTES, "Ed25519", cryptoProvider)
+        val ephemeral = generateX25519(secureRandom, cryptoProvider)
         val sessionId = ByteArray(SESSION_ID_BYTES).also(secureRandom::nextBytes)
         val nonce = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)
         try {
@@ -424,7 +424,7 @@ object AuthenticatedSessionProtocol {
                 ephemeral.private,
                 identityPublicKey,
                 timePolicy,
-                x25519Provider
+                cryptoProvider
             )
         } catch (error: Throwable) {
             destroy(ephemeral.private)
@@ -440,10 +440,10 @@ object AuthenticatedSessionProtocol {
         replayGuard: ReplayGuard,
         timePolicy: HandshakeTimePolicy,
         secureRandom: SecureRandom = random,
-        x25519Provider: Provider? = null
+        cryptoProvider: Provider? = null
     ): ResponderResult {
         val hello = copyHello(candidateHello)
-        validateHello(hello, x25519Provider)
+        validateHello(hello, cryptoProvider)
         timePolicy.validateCreatedAt(hello.createdAtEpochMs)
         val initiatorUnsigned = helloUnsignedBytes(
             hello.createdAtEpochMs,
@@ -470,7 +470,7 @@ object AuthenticatedSessionProtocol {
         }
 
         val responderIdentity = identity.publicKeySpki.copyOf()
-        validatePublicKey(responderIdentity, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
+        validatePublicKey(responderIdentity, ED25519_PUBLIC_KEY_BYTES, "Ed25519", cryptoProvider)
         require(!responderIdentity.contentEquals(hello.identityPublicKeySpki)) {
             "Peer-session identity keys must be distinct"
         }
@@ -503,7 +503,7 @@ object AuthenticatedSessionProtocol {
                 signature.copyOf()
             )
 
-            val sharedSecret = agree(ephemeral.private, hello.ephemeralPublicKeySpki, x25519Provider)
+            val sharedSecret = agree(ephemeral.private, hello.ephemeralPublicKeySpki, cryptoProvider)
             try {
                 val transcript = transcriptHash(hello, response)
                 val session = deriveSession(
@@ -521,13 +521,13 @@ object AuthenticatedSessionProtocol {
         }
     }
 
-    private fun validateHello(hello: Hello, x25519Provider: Provider? = null) {
+    private fun validateHello(hello: Hello, cryptoProvider: Provider? = null) {
         require(hello.version == VERSION) { "Unsupported peer-session version" }
         require(hello.createdAtEpochMs >= 0) { "Invalid handshake creation time" }
         require(hello.sessionId.size == SESSION_ID_BYTES) { "Invalid peer-session ID" }
         validateNonce(hello.initiatorNonce, "initiator nonce")
-        validatePublicKey(hello.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", x25519Provider)
-        validatePublicKey(hello.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
+        validatePublicKey(hello.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", cryptoProvider)
+        validatePublicKey(hello.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519", cryptoProvider)
         require(hello.signature.size == ED25519_SIGNATURE_BYTES) { "Invalid peer-session signature length" }
     }
 
