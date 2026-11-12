@@ -455,6 +455,48 @@ class AuthenticatedSessionProtocolTest {
     }
 
     @Test
+    fun `replay guard with insufficient retention is rejected before claim`() {
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy())
+        var claims = 0
+        val shortGuard = object : AuthenticatedSessionProtocol.ReplayGuard {
+            override val retentionMillis = AuthenticatedSessionProtocol.MIN_REPLAY_RETENTION_MILLIS - 1
+            override fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean {
+                claims += 1
+                return true
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.accept(pending.hello, TestIdentity(), verifier, trusted, shortGuard, timePolicy())
+        }
+        assertEquals(0, claims)
+        pending.close()
+    }
+
+    @Test
+    fun `custom freshness window requires matching replay retention`() {
+        val policy = AuthenticatedSessionProtocol.HandshakeTimePolicy(
+            { 1_000_000L },
+            maximumAgeMillis = 240_000L,
+            maximumFutureSkewMillis = 45_000L
+        )
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), policy)
+        val guard = object : AuthenticatedSessionProtocol.ReplayGuard {
+            override val retentionMillis = policy.minimumReplayRetentionMillis
+            override fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean = true
+        }
+        val accepted = AuthenticatedSessionProtocol.accept(pending.hello, TestIdentity(), verifier, trusted, guard, policy)
+        accepted.session.close()
+        pending.close()
+    }
+
+    @Test
+    fun `default replay guard retention covers default freshness policy`() {
+        val guard = AuthenticatedSessionProtocol.BoundedInMemoryReplayGuard()
+        val policy = AuthenticatedSessionProtocol.HandshakeTimePolicy { 1_000L }
+        assertTrue(guard.retentionMillis >= policy.minimumReplayRetentionMillis)
+    }
+
+    @Test
     fun `closed sessions reject further cryptographic operations`() {
         val (initiator, responder) = establish()
         initiator.close()

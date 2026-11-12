@@ -16,7 +16,7 @@ The initiator captures `createdAtEpochMs` when creating its hello. The timestamp
 - Maximum future clock skew: 30,000 ms (inclusive).
 - Default in-memory replay retention: 151,000 ms, covering maximum age plus future skew and a one-second margin.
 
-Custom replay guards must retain claims for at least maximum age plus maximum future skew from first acceptance. The in-memory guard is process-local and does not survive process death. Caller-supplied rollback detection only detects rollback during the lifetime of that policy; it is not a hardware-backed time anchor across reboot.
+Every replay guard exposes its guaranteed `retentionMillis`. The responder rejects a guard whose declared retention is shorter than the active time policy's maximum age plus future skew plus a one-second margin, before consuming replay state. If the freshness window is customized, the replay guard must declare a matching retention period. Implementations must not overstate their guarantee. The in-memory guard is process-local and does not survive process death. Caller-supplied rollback detection only detects rollback during the lifetime of that policy; it is not a hardware-backed time anchor across reboot.
 
 ## Handshake wire framing
 
@@ -54,6 +54,7 @@ Secret arrays are cleared best-effort after use and on session close. Provider-o
 - Ed25519-authenticated v2 transcript and fixed-width binary codec.
 - Signed creation timestamp and expiry/future-skew checks on both peers.
 - Caller-injected monotonicity-checking time policy.
+- Replay-guard retention is an explicit contract and checked against the active freshness window before replay claims.
 - Fresh X25519, HKDF-SHA-256, directional AES-256-GCM.
 - Strict packet sequencing and bounded process-local replay guard.
 - JVM tests for freshness boundaries, clock rollback, timestamp tampering, framing, trust rejection, replay, tampering, and payload limits.

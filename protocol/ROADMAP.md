@@ -58,6 +58,7 @@
 - [x] Add fixed-width bounded binary codec for v2 hello and response frames
 - [x] Sign initiator creation timestamp and enforce expiry/future-skew checks on both peers
 - [x] Require caller-injected rollback-detecting handshake time policy
+- [x] Enforce replay-guard retention against configured handshake freshness before accepting replay claims
 - [ ] Add durable replay protection and rollback-resistant time anchor across process restarts
 - [ ] Add native identity-provider adapter
 - [ ] Integrate authenticated session state with Android Nearby connection lifecycle

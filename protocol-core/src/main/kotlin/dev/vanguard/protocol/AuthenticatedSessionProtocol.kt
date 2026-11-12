@@ -38,7 +38,8 @@ object AuthenticatedSessionProtocol {
     private const val RESPONSE_FRAME_BYTES = 241
     const val MAX_HANDSHAKE_AGE_MILLIS = 120_000L
     const val MAX_FUTURE_SKEW_MILLIS = 30_000L
-    const val MIN_REPLAY_RETENTION_MILLIS = MAX_HANDSHAKE_AGE_MILLIS + MAX_FUTURE_SKEW_MILLIS + 1_000L
+    const val REPLAY_RETENTION_MARGIN_MILLIS = 1_000L
+    const val MIN_REPLAY_RETENTION_MILLIS = MAX_HANDSHAKE_AGE_MILLIS + MAX_FUTURE_SKEW_MILLIS + REPLAY_RETENTION_MARGIN_MILLIS
     private const val X25519_PUBLIC_KEY_BYTES = 44
     private const val ED25519_PUBLIC_KEY_BYTES = 44
     private const val ED25519_SIGNATURE_BYTES = 64
@@ -72,6 +73,13 @@ object AuthenticatedSessionProtocol {
     }
 
     fun interface ReplayGuard {
+        /**
+         * Minimum duration for which a successful claim is guaranteed to remain present.
+         * Persistent implementations must honor this contract across process restarts.
+         */
+        val retentionMillis: Long
+            get() = MIN_REPLAY_RETENTION_MILLIS
+
         /** Atomically claims a session ID + initiator nonce until the handshake expires. */
         fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean
     }
@@ -91,6 +99,9 @@ object AuthenticatedSessionProtocol {
             require(maximumAgeMillis in 1..600_000L) { "Invalid maximum handshake age" }
             require(maximumFutureSkewMillis in 0..120_000L) { "Invalid maximum future skew" }
         }
+        val minimumReplayRetentionMillis: Long
+            get() = maximumAgeMillis + maximumFutureSkewMillis + REPLAY_RETENTION_MARGIN_MILLIS
+
         @Synchronized fun captureNow(): Long {
             val now = epochMillis()
             require(now >= 0) { "Handshake clock must be non-negative" }
@@ -124,6 +135,9 @@ object AuthenticatedSessionProtocol {
         private val originNanos = System.nanoTime()
         private val nowElapsedMillis: () -> Long = elapsedClock
             ?: { (System.nanoTime() - originNanos) / 1_000_000L }
+        override val retentionMillis: Long
+            get() = ttlMillis
+
         private val entries = LinkedHashMap<String, Long>()
         private var lastObservedElapsedMillis: Long? = null
 
@@ -445,7 +459,11 @@ object AuthenticatedSessionProtocol {
             "Peer-session initiator is not trusted"
         }
         timePolicy.validateCreatedAt(hello.createdAtEpochMs)
-        require(replayGuard.claim(hello.sessionId.copyOf(), hello.initiatorNonce.copyOf())) {
+        require(replayGuard.retentionMillis >= timePolicy.minimumReplayRetentionMillis) {
+            "Replay guard retention (" + replayGuard.retentionMillis + " ms) is shorter than the required " +
+                timePolicy.minimumReplayRetentionMillis + " ms"
+        }
+        require(replayGuard.claim(hello.sessionId.copyOf(), hello.initiatorNonce.copyOf()))
             "Peer-session hello was replayed"
         }
 
