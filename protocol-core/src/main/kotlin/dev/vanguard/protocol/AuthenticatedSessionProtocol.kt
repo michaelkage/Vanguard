@@ -632,8 +632,11 @@ object AuthenticatedSessionProtocol {
         private val transcriptHash: ByteArray,
         private val sendDirection: String,
         private val receiveDirection: String,
-        val remoteIdentityPublicKeySpki: ByteArray
+        private val remoteIdentityKey: ByteArray
     ) : AutoCloseable {
+        val remoteIdentityPublicKeySpki: ByteArray
+            get() = remoteIdentityKey.copyOf()
+
         private var sendSequence = 0L
         private var receiveSequence = 0L
         private var closed = false
