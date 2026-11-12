@@ -173,7 +173,7 @@ object AuthenticatedSessionProtocol {
     }
 
     /** Fixed-width, versioned binary framing for the two handshake messages. */
-    fun encodeHelloFrame(candidate: Hello): ByteArray {
+    fun encodeHelloFrame(candidate: Hello, x25519Provider: Provider? = null): ByteArray {
         val hello = copyHello(candidate)
         validateHello(hello, x25519Provider)
         return ByteArrayOutputStream().use { output ->
@@ -443,7 +443,7 @@ object AuthenticatedSessionProtocol {
         x25519Provider: Provider? = null
     ): ResponderResult {
         val hello = copyHello(candidateHello)
-        validateHello(hello)
+        validateHello(hello, x25519Provider)
         timePolicy.validateCreatedAt(hello.createdAtEpochMs)
         val initiatorUnsigned = helloUnsignedBytes(
             hello.createdAtEpochMs,
