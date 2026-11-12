@@ -60,7 +60,11 @@
 - [x] Require caller-injected rollback-detecting handshake time policy
 - [x] Enforce replay-guard retention against configured handshake freshness before accepting replay claims
 - [ ] Add durable replay protection and rollback-resistant time anchor across process restarts
-- [ ] Add native identity-provider adapter
+- [x] Add byte-oriented native Ed25519 signing and verification API without UTF-8 conversion
+- [x] Compile shared peer-session protocol core into the Android identity module
+- [x] Add explicit Bouncy Castle provider injection for Ed25519/X25519 parsing, generation, and agreement without global provider registration
+- [ ] Add native identity-provider adapter that implements the protocol signer/verifier interfaces
+- [ ] Validate Bouncy Castle X25519 behavior and identity key operations on API 23 and current Android devices
 - [ ] Integrate authenticated session state with Android Nearby connection lifecycle
 - [x] Add bounded process-local replay guard with monotonic expiry and fail-closed capacity handling
 - [ ] Add durable replay guard and handshake lifecycle/timeout policy
