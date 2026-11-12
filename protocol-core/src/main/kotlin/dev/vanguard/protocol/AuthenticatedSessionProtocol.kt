@@ -72,13 +72,12 @@ object AuthenticatedSessionProtocol {
         fun isTrusted(publicKeySpki: ByteArray): Boolean
     }
 
-    fun interface ReplayGuard {
+    interface ReplayGuard {
         /**
          * Minimum duration for which a successful claim is guaranteed to remain present.
-         * Persistent implementations must honor this contract across process restarts.
+         * Implementations must report their real retention and must not overstate it.
          */
         val retentionMillis: Long
-            get() = MIN_REPLAY_RETENTION_MILLIS
 
         /** Atomically claims a session ID + initiator nonce until the handshake expires. */
         fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean

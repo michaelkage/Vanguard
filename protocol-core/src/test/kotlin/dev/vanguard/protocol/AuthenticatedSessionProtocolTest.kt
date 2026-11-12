@@ -25,6 +25,7 @@ class AuthenticatedSessionProtocolTest {
     }
 
     private class ReplayGuard : AuthenticatedSessionProtocol.ReplayGuard {
+        override val retentionMillis = AuthenticatedSessionProtocol.MIN_REPLAY_RETENTION_MILLIS
         private val claimed = mutableSetOf<String>()
 
         override fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean =
@@ -311,9 +312,12 @@ class AuthenticatedSessionProtocolTest {
         val responder = TestIdentity()
         val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
         var replayClaims = 0
-        val replayGuard = AuthenticatedSessionProtocol.ReplayGuard { _, _ ->
-            replayClaims += 1
-            true
+        val replayGuard = object : AuthenticatedSessionProtocol.ReplayGuard {
+            override val retentionMillis = AuthenticatedSessionProtocol.MIN_REPLAY_RETENTION_MILLIS
+            override fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean {
+                replayClaims += 1
+                return true
+            }
         }
 
         assertFailsWith<IllegalArgumentException> {
@@ -388,7 +392,13 @@ class AuthenticatedSessionProtocolTest {
         var now = 100_000L
         val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy { now })
         var claims = 0
-        val guard = AuthenticatedSessionProtocol.ReplayGuard { _, _ -> claims += 1; true }
+        val guard = object : AuthenticatedSessionProtocol.ReplayGuard {
+            override val retentionMillis = AuthenticatedSessionProtocol.MIN_REPLAY_RETENTION_MILLIS
+            override fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean {
+                claims += 1
+                return true
+            }
+        }
         now += AuthenticatedSessionProtocol.MAX_HANDSHAKE_AGE_MILLIS + 1
         assertFailsWith<IllegalArgumentException> {
             AuthenticatedSessionProtocol.accept(pending.hello, TestIdentity(), verifier, trusted, guard, timePolicy { now })
@@ -492,7 +502,7 @@ class AuthenticatedSessionProtocolTest {
     @Test
     fun `default replay guard retention covers default freshness policy`() {
         val guard = AuthenticatedSessionProtocol.BoundedInMemoryReplayGuard()
-        val policy = AuthenticatedSessionProtocol.HandshakeTimePolicy { 1_000L }
+        val policy = AuthenticatedSessionProtocol.HandshakeTimePolicy({ 1_000L })
         assertTrue(guard.retentionMillis >= policy.minimumReplayRetentionMillis)
     }
 
