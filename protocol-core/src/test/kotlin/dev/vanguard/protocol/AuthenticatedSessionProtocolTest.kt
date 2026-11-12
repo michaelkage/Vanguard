@@ -117,6 +117,47 @@ class AuthenticatedSessionProtocolTest {
     }
 
     @Test
+    fun `bounded replay guard rejects duplicates and fails closed at capacity`() {
+        var now = 0L
+        val guard = AuthenticatedSessionProtocol.BoundedInMemoryReplayGuard(
+            capacity = 2,
+            ttlMillis = 100,
+            elapsedClock = { now }
+        )
+        val firstId = ByteArray(16) { 1 }
+        val secondId = ByteArray(16) { 2 }
+        val thirdId = ByteArray(16) { 3 }
+        val firstNonce = ByteArray(32) { 4 }
+
+        assertTrue(guard.claim(firstId, firstNonce))
+        assertFalse(guard.claim(firstId, firstNonce))
+        assertTrue(guard.claim(secondId, firstNonce))
+        assertFalse(guard.claim(thirdId, firstNonce))
+
+        now = 100
+        assertTrue(guard.claim(thirdId, firstNonce))
+        assertTrue(guard.claim(firstId, firstNonce))
+    }
+
+    @Test
+    fun `replay guard rejects invalid identifiers and invalid clock values`() {
+        var now = 0L
+        val guard = AuthenticatedSessionProtocol.BoundedInMemoryReplayGuard(
+            elapsedClock = { now }
+        )
+        assertFailsWith<IllegalArgumentException> {
+            guard.claim(ByteArray(15), ByteArray(32))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            guard.claim(ByteArray(16), ByteArray(31))
+        }
+        now = -1
+        assertFailsWith<IllegalArgumentException> {
+            guard.claim(ByteArray(16), ByteArray(32))
+        }
+    }
+
+    @Test
     fun `both peers derive interoperable directional session keys`() {
         val (initiator, responder) = establish()
         try {
