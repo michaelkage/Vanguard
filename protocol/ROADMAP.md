@@ -81,7 +81,9 @@
 
 ## Milestone 6 — Supabase gateway and campus identity
 - [ ] Implement authenticated enrollment and campus membership binding
-- [x] Verify pinned-server-signed campus author snapshots and cache them monotonically in SQLCipher on the client
+- [x] Verify pinned-server-signed campus author snapshots and cache them monotonically in SQLCipher in the TypeScript client
+- [x] Add native Kotlin v1 snapshot parsing, canonical-message reconstruction, pinned-key Ed25519 verification, and freshness checks
+- [ ] Add native durable sequence/equivocation state and compose a native fail-closed author-trust policy
 - [ ] Implement the server-side device-key registry, enrollment, rotation, revocation, and snapshot issuance
 - [ ] Implement Edge Function ingestion with strict schema and server-side signature verification
 - [ ] Make event insertion idempotent and return per-event acknowledgements
