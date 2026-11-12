@@ -463,8 +463,9 @@ object AuthenticatedSessionProtocol {
             "Replay guard retention (" + replayGuard.retentionMillis + " ms) is shorter than the required " +
                 timePolicy.minimumReplayRetentionMillis + " ms"
         }
-        require(replayGuard.claim(hello.sessionId.copyOf(), hello.initiatorNonce.copyOf()))
+        require(replayGuard.claim(hello.sessionId.copyOf(), hello.initiatorNonce.copyOf())) {
             "Peer-session hello was replayed"
+        }
         }
 
         val responderIdentity = identity.publicKeySpki.copyOf()
