@@ -58,7 +58,8 @@
 - [x] Add fixed-width bounded binary codec for hello and response frames
 - [ ] Add native identity-provider adapter
 - [ ] Integrate authenticated session state with Android Nearby connection lifecycle
-- [ ] Add bounded replay-guard implementation and lifecycle/timeout policy
+- [x] Add bounded process-local replay guard with monotonic expiry and fail-closed capacity handling
+- [ ] Add durable replay guard and handshake lifecycle/timeout policy
 - [ ] Validate two-device handshake, rekey, disconnect, and message exchange
 - [ ] Integrate end-to-end encrypted direct messages with durable message storage
 
