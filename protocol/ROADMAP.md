@@ -55,7 +55,8 @@
 - [x] Add Kotlin/JVM reference for Ed25519-authenticated ephemeral X25519 peer handshakes
 - [x] Derive directional AES-256-GCM traffic keys with HKDF-SHA-256 and transcript binding
 - [x] Add strict per-direction packet sequencing, replay rejection, and bounded 24 KiB framing
-- [ ] Add bounded handshake wire codec and native identity-provider adapter
+- [x] Add fixed-width bounded binary codec for hello and response frames
+- [ ] Add native identity-provider adapter
 - [ ] Integrate authenticated session state with Android Nearby connection lifecycle
 - [ ] Add bounded replay-guard implementation and lifecycle/timeout policy
 - [ ] Validate two-device handshake, rekey, disconnect, and message exchange
