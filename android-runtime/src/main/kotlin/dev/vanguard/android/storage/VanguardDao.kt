@@ -50,4 +50,22 @@ interface VanguardDao {
 
     @Query("SELECT COUNT(*) FROM relay_queue")
     suspend fun pendingRelayCount(): Int
+
+    // Synchronous replay operations are invoked only from the protocol's
+    // background handshake path and are grouped by RoomPeerHandshakeReplayStore
+    // inside one database transaction.
+    @Query("SELECT lastObservedEpochMs FROM peer_handshake_replay_clock WHERE id = 1")
+    fun getLastReplayClockEpochMs(): Long?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun putReplayClock(clock: PeerHandshakeReplayClock)
+
+    @Query("DELETE FROM peer_handshake_replay_claims WHERE expiresAtEpochMs <= :nowEpochMs")
+    fun deleteExpiredReplayClaims(nowEpochMs: Long)
+
+    @Query("SELECT COUNT(*) FROM peer_handshake_replay_claims")
+    fun countReplayClaims(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    fun insertReplayClaim(claim: PeerHandshakeReplayClaim): Long
 }
