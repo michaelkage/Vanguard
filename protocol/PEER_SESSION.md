@@ -1,6 +1,6 @@
 # Authenticated peer-session reference v2
 
-Status: Kotlin/JVM reference implementation; Android transport integration is not complete.
+Status: Kotlin/JVM reference implementation with an Android Room-backed durable replay-claim store; Android Nearby transport integration is not complete.
 
 Ed25519 authenticates the handshake transcript. Fresh X25519 ephemeral key pairs derive session traffic keys. The Ed25519 signing key is never used for key agreement.
 
@@ -8,15 +8,19 @@ Ed25519 authenticates the handshake transcript. Fresh X25519 ephemeral key pairs
 
 Both peers must supply an Ed25519 identity signer/verifier, a fail-closed campus author-trust policy, an atomic replay guard, and a `HandshakeTimePolicy` backed by a caller-owned rollback-aware epoch clock. There is no system-clock default. A valid signature proves control of a key, not campus enrollment.
 
+The Android runtime exposes `createAndroidPeerHandshakeReplayGuard(context, epochClock)`. It uses a Room transaction to atomically persist the hashed session-ID/initiator-nonce claim, its expiry, and the highest observed epoch time. Construct and invoke the guard on a worker-thread handshake path; it rejects calls from the Android main thread.
+
 ## Freshness policy
 
 The initiator captures `createdAtEpochMs` when creating its hello. The timestamp is signed and encoded in the hello frame. The responder validates freshness before signature verification, again immediately before replay-state consumption, and the initiator rechecks it before completing the handshake.
 
 - Maximum hello age: 120,000 ms (inclusive).
 - Maximum future clock skew: 30,000 ms (inclusive).
-- Default in-memory replay retention: 151,000 ms, covering maximum age plus future skew and a one-second margin.
+- Default replay retention: 151,000 ms, covering maximum age plus future skew and a one-second margin.
 
-Every replay guard exposes its guaranteed `retentionMillis`. The responder rejects a guard whose declared retention is shorter than the active time policy's maximum age plus future skew plus a one-second margin, before consuming replay state. If the freshness window is customized, the replay guard must declare a matching retention period. Implementations must not overstate their guarantee. The in-memory guard is process-local and does not survive process death. Caller-supplied rollback detection only detects rollback during the lifetime of that policy; it is not a hardware-backed time anchor across reboot.
+Every replay guard exposes its guaranteed `retentionMillis`. The responder rejects a guard whose declared retention is shorter than the active time policy's maximum age plus future skew plus a one-second margin, before consuming replay state. If the freshness window is customized, the replay guard must declare a matching retention period. Implementations must not overstate their guarantee.
+
+The process-local guard uses a monotonic clock and does not survive process death. The Android Room-backed guard survives ordinary process restarts and persists a clock high-water mark; it fails closed if the supplied epoch clock moves backwards relative to the last committed claim. This is not a hardware-backed or tamper-resistant time anchor: deleting or rolling back application storage, restoring an old device backup, or controlling the device can roll back both claims and the high-water mark. The Room reference database is not SQLCipher-backed; claim identifiers are SHA-256 digests rather than raw handshake identifiers, but production encrypted-storage integration remains required.
 
 ## Handshake wire framing
 
@@ -54,17 +58,20 @@ Secret arrays are cleared best-effort after use and on session close. Provider-o
 - Ed25519-authenticated v2 transcript and fixed-width binary codec.
 - Signed creation timestamp and expiry/future-skew checks on both peers.
 - Caller-injected monotonicity-checking time policy.
-- Replay-guard retention is an explicit contract and checked against the active freshness window before replay claims.
-- Fresh X25519, HKDF-SHA-256, directional AES-256-GCM.
-- Strict packet sequencing and bounded process-local replay guard.
-- JVM tests for freshness boundaries, clock rollback, timestamp tampering, framing, trust rejection, replay, tampering, and payload limits.
+- Explicit replay-guard retention contract checked against the active freshness window.
+- Bounded process-local replay guard with monotonic expiry and fail-closed capacity handling.
+- Generic durable replay-guard implementation with atomic transactional claims, persisted expiry, bounded capacity, and persisted clock high-water checks.
+- Android Room adapter and version-1-to-version-2 database migration for durable replay claims.
+- JVM tests for freshness boundaries, clock rollback, timestamp tampering, framing, trust rejection, replay, tampering, payload limits, durable replay across guard recreation, expiry, capacity, and persisted clock rollback.
 
 ## Not implemented
 
 - Native Android identity-provider adapter or Android provider/device compatibility validation.
+- SQLCipher-backed Room replay storage or integrity protection against application-storage rollback.
+- Hardware-backed rollback-resistant time anchor across device reboot or storage restoration.
 - Nearby connection lifecycle integration.
-- Durable replay state or rollback-resistant time anchor across process restarts.
 - Handshake cancellation/timeouts, key confirmation, or rekey policy.
 - Message storage, receipts, direct-message UI, or iOS crypto/transport adapter.
+- Physical-device validation of durable replay behavior and provider interoperability.
 
 Until native integration and physical-device tests pass, the running app relies only on Google Play services Nearby link encryption. Do not claim Vanguard currently provides end-to-end encrypted peer messaging.
