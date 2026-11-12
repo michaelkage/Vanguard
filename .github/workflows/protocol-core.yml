@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, "feat/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "feat/expo-client-foundation"]
 
 concurrency:
   group: vanguard-${{ github.ref }}
@@ -14,6 +14,21 @@ permissions:
   contents: read
 
 jobs:
+  field-manual:
+    name: Field manual quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.13.0"
+
+      - name: Validate product site and inline scripts
+        run: node --test scripts/site.node.mjs
+
   kotlin-protocol:
     name: Kotlin protocol tests and Android storage build
     runs-on: ubuntu-latest
@@ -59,8 +74,6 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          # Google removed the legacy `tools` SDK package. The action's v3 default
-          # still requests it and fails before the build starts.
           packages: platform-tools
 
       - name: Install Android SDK 37.0
