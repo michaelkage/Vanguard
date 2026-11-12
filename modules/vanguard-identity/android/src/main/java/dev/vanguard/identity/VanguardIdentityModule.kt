@@ -118,6 +118,9 @@ private class IdentityKeyStore(context: Context) {
   }
 
   fun signBytesBase64Url(messageBase64Url: String): String {
+    require(messageBase64Url.length <= MAX_BASE64URL_SIGNING_INPUT_CHARS) {
+      "Signing input exceeds the protocol signing limit"
+    }
     val messageBytes = decodeUrl(messageBase64Url)
     return try {
       encodeUrl(signBytes(messageBytes))
@@ -306,6 +309,7 @@ private class IdentityKeyStore(context: Context) {
     private const val GCM_IV_BYTES = 12
     private const val X509_ED25519_PUBLIC_KEY_BYTES = 44
     private const val MAX_SIGNING_MESSAGE_BYTES = 64 * 1024
+    private const val MAX_BASE64URL_SIGNING_INPUT_CHARS = (MAX_SIGNING_MESSAGE_BYTES * 4 + 2) / 3
     private const val MAX_PUBLIC_KEY_BYTES = 128
     private const val MAX_CIPHERTEXT_BYTES = 4096
     private const val MIN_RECORD_BYTES = 4 + 4 + X509_ED25519_PUBLIC_KEY_BYTES + 4 + GCM_IV_BYTES + 4 + GCM_TAG_BYTES
@@ -328,6 +332,7 @@ private class IdentityKeyStore(context: Context) {
       messageBase64Url: String,
       signatureEncoded: String
     ): Boolean {
+      if (messageBase64Url.length > MAX_BASE64URL_SIGNING_INPUT_CHARS) return false
       val messageBytes = try {
         decodeUrl(messageBase64Url)
       } catch (_: Exception) {
