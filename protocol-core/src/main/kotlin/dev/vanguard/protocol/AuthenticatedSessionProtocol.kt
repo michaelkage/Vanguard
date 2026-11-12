@@ -1,6 +1,8 @@
 package dev.vanguard.protocol
 
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -44,6 +46,7 @@ object AuthenticatedSessionProtocol {
     private const val RESPONSE_DOMAIN = "VANGUARD_PEER_RESPONSE_V1"
     private const val KEY_DERIVATION_DOMAIN = "VANGUARD_PEER_TRAFFIC_KEYS_V1"
     private const val PACKET_DOMAIN = "VANGUARD_PEER_PACKET_V1"
+    private val HANDSHAKE_MAGIC = byteArrayOf(0x56, 0x47, 0x48, 0x31)
 
     private val random = SecureRandom()
 
@@ -67,7 +70,103 @@ object AuthenticatedSessionProtocol {
         fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean
     }
 
+
     enum class Role { INITIATOR, RESPONDER }
+
+    /** Fixed-width, versioned binary framing for the two handshake messages. */
+    fun encodeHelloFrame(hello: Hello): ByteArray {
+        validateHello(hello)
+        return ByteArrayOutputStream().use { output ->
+            DataOutputStream(output).use { data ->
+                data.write(HANDSHAKE_MAGIC)
+                data.writeByte(1)
+                data.writeInt(hello.version)
+                data.write(hello.sessionId)
+                data.write(hello.initiatorNonce)
+                data.write(hello.ephemeralPublicKeySpki)
+                data.write(hello.identityPublicKeySpki)
+                data.write(hello.signature)
+            }
+            output.toByteArray()
+        }.also { require(it.size <= MAX_PACKET_BYTES) { "Handshake frame exceeds packet limit" } }
+    }
+
+    fun decodeHelloFrame(frame: ByteArray): Hello {
+        val input = openHandshakeFrame(frame, 1)
+        val version = input.readInt()
+        val hello = Hello(
+            version,
+            readExact(input, SESSION_ID_BYTES),
+            readExact(input, NONCE_BYTES),
+            readExact(input, X25519_PUBLIC_KEY_BYTES),
+            readExact(input, ED25519_PUBLIC_KEY_BYTES),
+            readExact(input, ED25519_SIGNATURE_BYTES)
+        )
+        require(input.available() == 0) { "Handshake hello contains trailing bytes" }
+        validateHello(hello)
+        return hello
+    }
+
+    fun encodeResponseFrame(response: Response): ByteArray {
+        validateResponseShape(response)
+        return ByteArrayOutputStream().use { output ->
+            DataOutputStream(output).use { data ->
+                data.write(HANDSHAKE_MAGIC)
+                data.writeByte(2)
+                data.writeInt(response.version)
+                data.write(response.sessionId)
+                data.write(response.initiatorNonce)
+                data.write(response.responderNonce)
+                data.write(response.ephemeralPublicKeySpki)
+                data.write(response.identityPublicKeySpki)
+                data.write(response.signature)
+            }
+            output.toByteArray()
+        }.also { require(it.size <= MAX_PACKET_BYTES) { "Handshake frame exceeds packet limit" } }
+    }
+
+    fun decodeResponseFrame(frame: ByteArray): Response {
+        val input = openHandshakeFrame(frame, 2)
+        val response = Response(
+            input.readInt(),
+            readExact(input, SESSION_ID_BYTES),
+            readExact(input, NONCE_BYTES),
+            readExact(input, NONCE_BYTES),
+            readExact(input, X25519_PUBLIC_KEY_BYTES),
+            readExact(input, ED25519_PUBLIC_KEY_BYTES),
+            readExact(input, ED25519_SIGNATURE_BYTES)
+        )
+        require(input.available() == 0) { "Handshake response contains trailing bytes" }
+        validateResponseShape(response)
+        return response
+    }
+
+    private fun openHandshakeFrame(frame: ByteArray, expectedType: Int): DataInputStream {
+        require(frame.size in 9..MAX_PACKET_BYTES) { "Handshake frame has an invalid length" }
+        val input = DataInputStream(ByteArrayInputStream(frame))
+        val magic = readExact(input, HANDSHAKE_MAGIC.size)
+        require(magic.contentEquals(HANDSHAKE_MAGIC)) { "Unrecognized Vanguard handshake frame" }
+        require(input.readUnsignedByte() == expectedType) { "Unexpected Vanguard handshake frame type" }
+        return input
+    }
+
+    private fun readExact(input: DataInputStream, length: Int): ByteArray =
+        ByteArray(length).also(input::readFully)
+
+    private fun validateResponseShape(response: Response) {
+        require(response.version == VERSION) { "Unsupported peer-session version" }
+        require(response.sessionId.size == SESSION_ID_BYTES) { "Invalid peer-session ID" }
+        validateNonce(response.initiatorNonce, "initiator nonce")
+        validateNonce(response.responderNonce, "responder nonce")
+        require(!response.responderNonce.contentEquals(response.initiatorNonce)) {
+            "Peer-session nonces must be distinct"
+        }
+        validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519")
+        validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
+        require(response.signature.size == ED25519_SIGNATURE_BYTES) {
+            "Invalid peer-session response signature length"
+        }
+    }
 
     data class Hello(
         val version: Int,
