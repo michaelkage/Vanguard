@@ -25,9 +25,12 @@ test("all in-page navigation targets exist and IDs are unique", () => {
 test("the interactive packet lab exposes its controls and live status", () => {
   for (const id of [
     "demo", "key-btn", "event-btn", "relay-btn", "sync-btn", "reset-btn",
-    "packet-list", "lab-status", "inspector", "toggle-trust", "tamper", "verify-again"
+    "packet-list", "lab-status", "inspector"
   ]) {
     assert.ok(ids.includes(id), "Missing packet-lab element: #" + id);
+  }
+  for (const id of ["toggle-trust", "tamper", "verify-again"]) {
+    assert.ok(html.includes('id="' + id + '"'), "Missing dynamically rendered packet-lab control: " + id);
   }
   assert.match(html, /id=["']lab-status["'][^>]*role=["']status["']/);
   assert.match(html, /aria-live=["']polite["']/);
