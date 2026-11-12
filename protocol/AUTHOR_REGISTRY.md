@@ -92,7 +92,7 @@ The registry must retain enough history for audit and incident investigation. Cl
 
 ## Current implementation boundary
 
-Implemented in the Android client:
+Implemented in the TypeScript/Expo client:
 
 - Strict snapshot shape and key-list validation.
 - Pinned-server Ed25519 signature verification through the native identity module.
@@ -101,10 +101,17 @@ Implemented in the Android client:
 - SQLCipher persistence and restart-time signature re-verification.
 - Fail-closed author trust policy integrated into the campus-aware Android mesh session factory.
 
+Native Android progress:
+
+- A Kotlin snapshot verifier now parses the v1 wire shape, reconstructs Vanguard's canonical unsigned message, verifies Ed25519 with Bouncy Castle, and enforces campus, timestamp, size, key-order, and status constraints.
+- Its trust root is a native BuildConfig field populated from the Gradle property `vanguardRegistryServerPublicKey`; an empty default fails closed. The key is not accepted from JavaScript or the snapshot.
+- The native verifier is not yet composed into a native author-trust policy or peer handshake. It does not persist sequence state, detect equivocation across restarts, or provide rollback-resistant time.
+
 Not yet implemented:
 
 - Authenticated enrollment challenge and proof-of-possession endpoint.
 - Server-side key registry and signing-key custody.
 - Snapshot issuance, distribution, key rotation, and revocation publication.
+- Native monotonic sequence/equivocation persistence and native trust-policy composition.
 - Rollback-resistant time anchoring across device reboots.
 - Supabase event ingestion, acknowledgements, and PlugScore projection integration.
