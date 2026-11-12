@@ -87,6 +87,7 @@ object AuthenticatedSessionProtocol {
         private val nowElapsedMillis: () -> Long = elapsedClock
             ?: { (System.nanoTime() - originNanos) / 1_000_000L }
         private val entries = LinkedHashMap<String, Long>()
+        private var lastObservedElapsedMillis: Long? = null
 
         init {
             require(capacity in 1..100_000) { "Replay-guard capacity must be between 1 and 100000" }
@@ -99,6 +100,11 @@ object AuthenticatedSessionProtocol {
             validateNonce(initiatorNonce, "initiator nonce")
             val now = nowElapsedMillis()
             require(now >= 0) { "Replay-guard clock must be monotonic and non-negative" }
+            val previousNow = lastObservedElapsedMillis
+            require(previousNow == null || now >= previousNow) {
+                "Replay-guard clock moved backwards"
+            }
+            lastObservedElapsedMillis = now
 
             val iterator = entries.entries.iterator()
             while (iterator.hasNext()) {
@@ -474,7 +480,10 @@ object AuthenticatedSessionProtocol {
             doPhase(remote, true)
             generateSecret()
         }.also { secret ->
-            require(secret.any { it.toInt() != 0 }) { "Invalid all-zero X25519 shared secret" }
+            if (secret.none { it.toInt() != 0 }) {
+                secret.fill(0)
+                throw IllegalArgumentException("Invalid all-zero X25519 shared secret")
+            }
         }
     }
 
@@ -541,7 +550,7 @@ object AuthenticatedSessionProtocol {
         role: Role,
         remoteIdentityPublicKey: ByteArray
     ): SecurePeerSession {
-        val output = hkdf(
+        val output = hkdfSha256(
             sharedSecret,
             transcriptHash,
             KEY_DERIVATION_DOMAIN.toByteArray(Charsets.US_ASCII),
@@ -591,15 +600,25 @@ object AuthenticatedSessionProtocol {
         }
     }
 
-    private fun hkdf(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
+    internal fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
+        require(length in 1..(255 * 32)) { "HKDF-SHA-256 output length must be between 1 and 8160 bytes" }
+
+        val effectiveSalt = if (salt.isEmpty()) ByteArray(32) else salt
         val extract = Mac.getInstance("HmacSHA256")
-        extract.init(SecretKeySpec(salt, "HmacSHA256"))
-        val prk = extract.doFinal(ikm)
+        val prk = try {
+            extract.init(SecretKeySpec(effectiveSalt, "HmacSHA256"))
+            extract.doFinal(ikm)
+        } finally {
+            if (effectiveSalt !== salt) effectiveSalt.fill(0)
+        }
+
+        val output = ByteArray(length)
+        var previous = ByteArray(0)
+        var written = 0
+        var counter = 1
+        var completed = false
         try {
-            val result = ByteArrayOutputStream()
-            var previous = ByteArray(0)
-            var counter = 1
-            while (result.size() < length) {
+            while (written < length) {
                 val expand = Mac.getInstance("HmacSHA256")
                 expand.init(SecretKeySpec(prk, "HmacSHA256"))
                 expand.update(previous)
@@ -608,12 +627,18 @@ object AuthenticatedSessionProtocol {
                 val next = expand.doFinal()
                 previous.fill(0)
                 previous = next
-                result.write(previous)
+
+                val copyLength = minOf(previous.size, length - written)
+                previous.copyInto(output, written, 0, copyLength)
+                written += copyLength
                 counter += 1
             }
-            return result.toByteArray().copyOf(length).also { previous.fill(0) }
+            completed = true
+            return output
         } finally {
             prk.fill(0)
+            previous.fill(0)
+            if (!completed) output.fill(0)
         }
     }
 
@@ -674,44 +699,68 @@ object AuthenticatedSessionProtocol {
             require(plaintext.size <= MAX_PLAINTEXT_BYTES) { "Peer-session plaintext exceeds packet limit" }
             check(sendSequence < Long.MAX_VALUE) { "Peer-session send sequence exhausted" }
             val sequence = sendSequence
-            val nonce = nonce(sendNoncePrefix, sequence)
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(sendKey, "AES"), GCMParameterSpec(128, nonce))
-            cipher.updateAAD(baseAad(transcriptHash, sendDirection, sequence))
-            val ciphertext = cipher.doFinal(plaintext)
-            val packet = ByteBuffer.allocate(PACKET_HEADER_BYTES + ciphertext.size)
-                .put(VERSION.toByte())
-                .putLong(sequence)
-                .put(ciphertext)
-                .array()
-            sendSequence += 1
-            return packet
+            val plaintextSnapshot = plaintext.copyOf()
+            val packetNonce = nonce(sendNoncePrefix, sequence)
+            val aad = baseAad(transcriptHash, sendDirection, sequence)
+            var ciphertext: ByteArray? = null
+            try {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init( Cipher.ENCRYPT_MODE, SecretKeySpec(sendKey, "AES"), GCMParameterSpec(128, packetNonce))
+                cipher.updateAAD(aad)
+                ciphertext = cipher.doFinal(plaintextSnapshot)
+                val packet = ByteBuffer.allocate(PACKET_HEADER_BYTES + ciphertext.size)
+                    .put(VERSION.toByte())
+                    .putLong(sequence)
+                    .put(ciphertext)
+                    .array()
+                sendSequence += 1
+                return packet
+            } finally {
+                plaintextSnapshot.fill(0)
+                packetNonce.fill(0)
+                aad.fill(0)
+                ciphertext?.fill(0)
+            }
         }
 
         @Synchronized
         fun decrypt(packet: ByteArray): ByteArray {
             checkOpen()
             val frame = packet.copyOf()
-            require(frame.size in (PACKET_HEADER_BYTES + GCM_TAG_BYTES)..MAX_PACKET_BYTES) {
-                "Peer-session packet has an invalid length"
+            var ciphertext: ByteArray? = null
+            var packetNonce: ByteArray? = null
+            var aad: ByteArray? = null
+            try {
+                require(frame.size in (PACKET_HEADER_BYTES + GCM_TAG_BYTES)..MAX_PACKET_BYTES) {
+                    "Peer-session packet has an invalid length"
+                }
+                val buffer = ByteBuffer.wrap(frame)
+                val version = buffer.get().toInt() and 0xff
+                require(version == VERSION) { "Unsupported peer-session packet version" }
+                val sequence = buffer.long
+                require(sequence == receiveSequence) { "Peer-session packet is replayed or out of order" }
+                ciphertext = ByteArray(buffer.remaining()).also(buffer::get)
+                packetNonce = nonce(receiveNoncePrefix, sequence)
+                aad = baseAad(transcriptHash, receiveDirection, sequence)
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(
+                    Cipher.DECRYPT_MODE,
+                    SecretKeySpec(receiveKey, "AES"),
+                    GCMParameterSpec(128, packetNonce)
+                )
+                cipher.updateAAD(aad)
+                val plaintext = cipher.doFinal(ciphertext)
+                require(plaintext.size <= MAX_PLAINTEXT_BYTES) {
+                    "Peer-session plaintext exceeds packet limit"
+                }
+                receiveSequence += 1
+                return plaintext
+            } finally {
+                frame.fill(0)
+                ciphertext?.fill(0)
+                packetNonce?.fill(0)
+                aad?.fill(0)
             }
-            val buffer = ByteBuffer.wrap(frame)
-            val version = buffer.get().toInt() and 0xff
-            require(version == VERSION) { "Unsupported peer-session packet version" }
-            val sequence = buffer.long
-            require(sequence == receiveSequence) { "Peer-session packet is replayed or out of order" }
-            val ciphertext = ByteArray(buffer.remaining()).also(buffer::get)
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                SecretKeySpec(receiveKey, "AES"),
-                GCMParameterSpec(128, nonce(receiveNoncePrefix, sequence))
-            )
-            cipher.updateAAD(baseAad(transcriptHash, receiveDirection, sequence))
-            val plaintext = cipher.doFinal(ciphertext)
-            require(plaintext.size <= MAX_PLAINTEXT_BYTES) { "Peer-session plaintext exceeds packet limit" }
-            receiveSequence += 1
-            return plaintext
         }
 
         @Synchronized

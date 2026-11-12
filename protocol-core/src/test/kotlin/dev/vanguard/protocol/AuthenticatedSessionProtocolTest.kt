@@ -159,6 +159,41 @@ class AuthenticatedSessionProtocolTest {
     }
 
     @Test
+    fun `HKDF SHA-256 matches RFC 5869 test case one`() {
+        fun hex(value: String): ByteArray = value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+
+        val ikm = ByteArray(22) { 0x0b }
+        val salt = hex("000102030405060708090a0b0c")
+        val info = hex("f0f1f2f3f4f5f6f7f8f9")
+        val actual = AuthenticatedSessionProtocol.hkdfSha256(ikm, salt, info, 42)
+
+        assertContentEquals(
+            hex("3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"),
+            actual
+        )
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.hkdfSha256(ikm, salt, info, 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.hkdfSha256(ikm, salt, info, 8161)
+        }
+    }
+
+    @Test
+    fun `replay guard fails closed when its monotonic clock moves backwards`() {
+        var now = 10L
+        val guard = AuthenticatedSessionProtocol.BoundedInMemoryReplayGuard(
+            ttlMillis = 100,
+            elapsedClock = { now }
+        )
+        assertTrue(guard.claim(ByteArray(16) { 1 }, ByteArray(32) { 2 }))
+        now = 9
+        assertFailsWith<IllegalArgumentException> {
+            guard.claim(ByteArray(16) { 3 }, ByteArray(32) { 4 })
+        }
+    }
+
+    @Test
     fun `both peers derive interoperable directional session keys`() {
         val (initiator, responder) = establish()
         try {
