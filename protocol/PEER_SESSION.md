@@ -55,6 +55,8 @@ The shared protocol-core Kotlin sources are compiled into the Android identity m
 
 The native identity module exposes byte-oriented Ed25519 signing and verification. JavaScript passes opaque bytes as canonical unpadded base64url; the native signer decodes them and signs the original bytes without UTF-8 conversion. Private key material remains inside the native module.
 
+The Android identity module now also contains native adapters for the shared protocol's `IdentitySigner` and `IdentityVerifier` interfaces. The signer captures the local SPKI public key, returns defensive copies, and refuses to sign if the persisted identity changes between adapter creation and signing. Signing and verification use the module's explicit Bouncy Castle provider. These adapters are internal Kotlin composition components; no JavaScript-controlled trust boolean or private-key export is introduced.
+
 These are compatibility and compilation steps, not proof of Android cryptographic provider compatibility on physical devices. The app does not yet invoke the shared handshake protocol or bind its resulting session to Nearby.
 
 ## Implemented
