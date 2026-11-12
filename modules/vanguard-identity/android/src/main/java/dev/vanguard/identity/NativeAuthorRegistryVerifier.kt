@@ -21,7 +21,7 @@ import java.security.spec.X509EncodedKeySpec
  * rollback/equivocation-resistant author policy.
  */
 internal class NativeAuthorRegistryVerifier(
-  private val pinnedServerPublicKey: String,
+  private val pinnedServerPublicKey: String = BuildConfig.VANGUARD_REGISTRY_SERVER_PUBLIC_KEY,
   private val campusId: String,
   private val maxSnapshotAgeMillis: Long,
   private val allowedClockSkewMillis: Long = DEFAULT_CLOCK_SKEW_MILLIS
@@ -49,12 +49,10 @@ internal class NativeAuthorRegistryVerifier(
     val bytes = snapshotJson.toByteArray(StandardCharsets.UTF_8)
     require(bytes.size <= MAX_SNAPSHOT_BYTES) { "Author registry snapshot exceeds 8 MiB" }
 
-    val root = JSONTokener(snapshotJson).nextValue() as? JSONObject
+    val tokener = JSONTokener(snapshotJson)
+    val root = tokener.nextValue() as? JSONObject
       ?: throw IllegalArgumentException("Author registry snapshot must be an object")
-    require(JSONTokener(snapshotJson).run {
-      nextValue()
-      nextClean() == 0.toChar()
-    }) { "Unexpected trailing author registry data" }
+    require(tokener.nextClean() == 0.toChar()) { "Unexpected trailing author registry data" }
     require(root.keySet() == ROOT_KEYS) {
       "Author registry snapshot contains missing or unexpected fields"
     }
