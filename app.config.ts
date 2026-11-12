@@ -23,8 +23,7 @@ const config: ExpoConfig = {
     }],
     ["expo-sqlite", { useSQLCipher: true }],
     ["expo-secure-store", {
-      configureAndroidBackup: true,
-      faceIDPermission: "Allow Vanguard to protect your local encryption key."
+      configureAndroidBackup: true
     }],
     "expo-dev-client"
   ]
