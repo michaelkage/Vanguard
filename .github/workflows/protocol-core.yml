@@ -27,7 +27,7 @@ jobs:
           node-version: "22.13.0"
 
       - name: Validate product site and inline scripts
-        run: node --test scripts/site.test.mjs
+        run: node --test scripts/site.node.mjs
 
   kotlin-protocol:
     name: Kotlin protocol tests and Android storage build
