@@ -226,15 +226,39 @@ class AuthenticatedSessionProtocolTest {
                 replayGuard
             )
         }
-        assertTrue(
+        val accepted = AuthenticatedSessionProtocol.accept(
+            pending.hello,
+            responder,
+            verifier,
+            trusted,
+            replayGuard
+        )
+        assertTrue(accepted.response.signature.isNotEmpty())
+        accepted.session.close()
+        pending.close()
+    }
+
+    @Test
+    fun `untrusted initiator is rejected before replay state is consumed`() {
+        val initiator = TestIdentity()
+        val responder = TestIdentity()
+        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        var replayClaims = 0
+        val replayGuard = AuthenticatedSessionProtocol.ReplayGuard { _, _ ->
+            replayClaims += 1
+            true
+        }
+
+        assertFailsWith<IllegalArgumentException> {
             AuthenticatedSessionProtocol.accept(
                 pending.hello,
                 responder,
                 verifier,
-                trusted,
+                AuthenticatedSessionProtocol.AuthorTrustPolicy { false },
                 replayGuard
-            ).response.signature.isNotEmpty()
-        )
+            )
+        }
+        assertEquals(0, replayClaims)
         pending.close()
     }
 
