@@ -8,7 +8,6 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AuthenticatedSessionProtocolTest {
@@ -64,6 +63,57 @@ class AuthenticatedSessionProtocolTest {
         )
         val initiatorSession = pending.complete(accepted.response, verifier, trusted)
         return initiatorSession to accepted.session
+    }
+
+    @Test
+    fun `handshake frames round trip with fixed width framing`() {
+        val initiator = TestIdentity()
+        val responder = TestIdentity()
+        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val helloFrame = AuthenticatedSessionProtocol.encodeHelloFrame(pending.hello)
+        val decodedHello = AuthenticatedSessionProtocol.decodeHelloFrame(helloFrame)
+
+        assertContentEquals(pending.hello.sessionId, decodedHello.sessionId)
+        assertContentEquals(pending.hello.initiatorNonce, decodedHello.initiatorNonce)
+        assertContentEquals(pending.hello.ephemeralPublicKeySpki, decodedHello.ephemeralPublicKeySpki)
+        assertContentEquals(pending.hello.identityPublicKeySpki, decodedHello.identityPublicKeySpki)
+        assertContentEquals(pending.hello.signature, decodedHello.signature)
+
+        val accepted = AuthenticatedSessionProtocol.accept(
+            decodedHello,
+            responder,
+            verifier,
+            trusted,
+            ReplayGuard()
+        )
+        val responseFrame = AuthenticatedSessionProtocol.encodeResponseFrame(accepted.response)
+        val decodedResponse = AuthenticatedSessionProtocol.decodeResponseFrame(responseFrame)
+        val session = pending.complete(decodedResponse, verifier, trusted)
+
+        assertContentEquals(
+            "codec verified".toByteArray(),
+            accepted.session.decrypt(session.encrypt("codec verified".toByteArray()))
+        )
+        session.close()
+        accepted.session.close()
+        pending.close()
+    }
+
+    @Test
+    fun `handshake codec rejects wrong frame type and trailing data`() {
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity())
+        val valid = AuthenticatedSessionProtocol.encodeHelloFrame(pending.hello)
+
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.decodeResponseFrame(valid)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.decodeHelloFrame(valid + byteArrayOf(0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.decodeHelloFrame(byteArrayOf(0, 0, 0))
+        }
+        pending.close()
     }
 
     @Test
