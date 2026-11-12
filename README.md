@@ -4,6 +4,12 @@ Vanguard is a local-first, peer-to-peer identity and communication system for ca
 
 The product goal is store-carry-forward communication: nearby devices exchange signed events locally, retain them safely, and synchronize with the authoritative backend when connectivity returns.
 
+## Field manual
+
+The interactive engineering field manual is published at [michaelkage.github.io/Vanguard](https://michaelkage.github.io/Vanguard/). It includes a browser-only signed-event packet lab, architecture map, operational constraints, and live GitHub repository/release metadata. The packet lab is a simulation: it does not persist to the app database, use device radios, or contact the backend.
+
+Validate the manual locally with `node --test scripts/site.test.mjs`.
+
 ## Application stack
 
 - React Native + TypeScript on Expo Development Builds.
