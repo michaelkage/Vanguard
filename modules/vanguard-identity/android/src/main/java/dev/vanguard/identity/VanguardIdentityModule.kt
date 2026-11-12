@@ -44,8 +44,23 @@ class VanguardIdentityModule : Module() {
       IdentityKeyStore(context).sign(message)
     }
 
+    /**
+     * Signs opaque bytes supplied as canonical unpadded base64url. This keeps
+     * handshake transcript bytes binary end-to-end; no UTF-8 conversion occurs.
+     */
+    AsyncFunction("signBytes") { messageBase64Url: String ->
+      val context = requireNotNull(appContext.reactContext) {
+        "Vanguard identity requires an active Android application context"
+      }.applicationContext
+      IdentityKeyStore(context).signBytesBase64Url(messageBase64Url)
+    }
+
     AsyncFunction("verify") { publicKey: String, message: String, signature: String ->
       IdentityKeyStore.verify(publicKey, message, signature)
+    }
+
+    AsyncFunction("verifyBytes") { publicKey: String, messageBase64Url: String, signature: String ->
+      IdentityKeyStore.verifyBytesBase64Url(publicKey, messageBase64Url, signature)
     }
 
     AsyncFunction("deleteIdentity") {
@@ -93,8 +108,25 @@ private class IdentityKeyStore(context: Context) {
     )
   }
 
-  fun sign(message: String): String = synchronized(LOCK) {
+  fun sign(message: String): String {
     val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
+    return try {
+      encodeUrl(signBytes(messageBytes))
+    } finally {
+      messageBytes.fill(0)
+    }
+  }
+
+  fun signBytesBase64Url(messageBase64Url: String): String {
+    val messageBytes = decodeUrl(messageBase64Url)
+    return try {
+      encodeUrl(signBytes(messageBytes))
+    } finally {
+      messageBytes.fill(0)
+    }
+  }
+
+  private fun signBytes(messageBytes: ByteArray): ByteArray = synchronized(LOCK) {
     require(messageBytes.size <= MAX_SIGNING_MESSAGE_BYTES) {
       "Signing input exceeds the protocol signing limit"
     }
@@ -107,7 +139,7 @@ private class IdentityKeyStore(context: Context) {
       val signer = Signature.getInstance(ALGORITHM, provider)
       signer.initSign(privateKey)
       signer.update(messageBytes)
-      encodeUrl(signer.sign())
+      signer.sign()
     } finally {
       privateBytes.fill(0)
     }
@@ -283,11 +315,39 @@ private class IdentityKeyStore(context: Context) {
       "vanguard-ed25519-key-check-v1".toByteArray(StandardCharsets.UTF_8)
 
     fun verify(publicKeyEncoded: String, message: String, signatureEncoded: String): Boolean {
+      val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
+      return try {
+        verifyBytes(publicKeyEncoded, messageBytes, signatureEncoded)
+      } finally {
+        messageBytes.fill(0)
+      }
+    }
+
+    fun verifyBytesBase64Url(
+      publicKeyEncoded: String,
+      messageBase64Url: String,
+      signatureEncoded: String
+    ): Boolean {
+      val messageBytes = try {
+        decodeUrl(messageBase64Url)
+      } catch (_: Exception) {
+        return false
+      }
+      return try {
+        verifyBytes(publicKeyEncoded, messageBytes, signatureEncoded)
+      } finally {
+        messageBytes.fill(0)
+      }
+    }
+
+    private fun verifyBytes(
+      publicKeyEncoded: String,
+      messageBytes: ByteArray,
+      signatureEncoded: String
+    ): Boolean {
       return try {
         val publicKeyBytes = decodeUrl(publicKeyEncoded)
         val signatureBytes = decodeUrl(signatureEncoded)
-        val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
-
         if (
           publicKeyBytes.size != X509_ED25519_PUBLIC_KEY_BYTES ||
           signatureBytes.size != 64 ||
