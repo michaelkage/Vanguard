@@ -6,12 +6,12 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.Base64
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.PrivateKey
+import java.security.Provider
 import java.security.SecureRandom
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
@@ -162,8 +162,7 @@ object AuthenticatedSessionProtocol {
                 if (iterator.next().value <= now) iterator.remove()
             }
 
-            val key = Base64.getUrlEncoder().withoutPadding().encodeToString(sessionId) + "." +
-                Base64.getUrlEncoder().withoutPadding().encodeToString(initiatorNonce)
+            val key = encodeHex(sessionId) + "." + encodeHex(initiatorNonce)
             if (entries.containsKey(key)) return false
             if (entries.size >= capacity) return false
 
@@ -176,7 +175,7 @@ object AuthenticatedSessionProtocol {
     /** Fixed-width, versioned binary framing for the two handshake messages. */
     fun encodeHelloFrame(candidate: Hello): ByteArray {
         val hello = copyHello(candidate)
-        validateHello(hello)
+        validateHello(hello, x25519Provider)
         return ByteArrayOutputStream().use { output ->
             DataOutputStream(output).use { data ->
                 data.write(HANDSHAKE_MAGIC)
@@ -193,7 +192,7 @@ object AuthenticatedSessionProtocol {
         }.also { require(it.size <= MAX_PACKET_BYTES) { "Handshake frame exceeds packet limit" } }
     }
 
-    fun decodeHelloFrame(frame: ByteArray): Hello {
+    fun decodeHelloFrame(frame: ByteArray, x25519Provider: Provider? = null): Hello {
         val input = openHandshakeFrame(frame, 1)
         val version = input.readInt()
         val createdAtEpochMs = input.readLong()
@@ -207,7 +206,7 @@ object AuthenticatedSessionProtocol {
             readExact(input, ED25519_SIGNATURE_BYTES)
         )
         require(input.available() == 0) { "Handshake hello contains trailing bytes" }
-        validateHello(hello)
+        validateHello(hello, x25519Provider)
         return hello
     }
 
@@ -230,7 +229,7 @@ object AuthenticatedSessionProtocol {
         }.also { require(it.size <= MAX_PACKET_BYTES) { "Handshake frame exceeds packet limit" } }
     }
 
-    fun decodeResponseFrame(frame: ByteArray): Response {
+    fun decodeResponseFrame(frame: ByteArray, x25519Provider: Provider? = null): Response {
         val input = openHandshakeFrame(frame, 2)
         val response = Response(
             input.readInt(),
@@ -242,7 +241,7 @@ object AuthenticatedSessionProtocol {
             readExact(input, ED25519_SIGNATURE_BYTES)
         )
         require(input.available() == 0) { "Handshake response contains trailing bytes" }
-        validateResponseShape(response)
+        validateResponseShape(response, x25519Provider)
         return response
     }
 
@@ -259,7 +258,7 @@ object AuthenticatedSessionProtocol {
     private fun readExact(input: DataInputStream, length: Int): ByteArray =
         ByteArray(length).also(input::readFully)
 
-    private fun validateResponseShape(response: Response) {
+    private fun validateResponseShape(response: Response, x25519Provider: Provider? = null) {
         require(response.version == VERSION) { "Unsupported peer-session version" }
         require(response.sessionId.size == SESSION_ID_BYTES) { "Invalid peer-session ID" }
         validateNonce(response.initiatorNonce, "initiator nonce")
@@ -267,7 +266,7 @@ object AuthenticatedSessionProtocol {
         require(!response.responderNonce.contentEquals(response.initiatorNonce)) {
             "Peer-session nonces must be distinct"
         }
-        validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519")
+        validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", x25519Provider)
         validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
         require(response.signature.size == ED25519_SIGNATURE_BYTES) {
             "Invalid peer-session response signature length"
@@ -321,7 +320,8 @@ object AuthenticatedSessionProtocol {
         hello: Hello,
         private val ephemeralPrivateKey: PrivateKey,
         localIdentityPublicKey: ByteArray,
-        private val timePolicy: HandshakeTimePolicy
+        private val timePolicy: HandshakeTimePolicy,
+        private val x25519Provider: Provider?
     ) : AutoCloseable {
         private val helloSnapshot = copyHello(hello)
         private val localIdentityKey = localIdentityPublicKey.copyOf()
@@ -354,7 +354,7 @@ object AuthenticatedSessionProtocol {
                 require(response.signature.size == ED25519_SIGNATURE_BYTES) {
                     "Invalid peer-session response signature length"
                 }
-                validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519")
+                validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", x25519Provider)
                 validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
                 require(!response.identityPublicKeySpki.contentEquals(localIdentityKey)) {
                     "Peer-session identity keys must be distinct"
@@ -379,7 +379,7 @@ object AuthenticatedSessionProtocol {
 
                 timePolicy.validateCreatedAt(hello.createdAtEpochMs)
                 val transcript = transcriptHash(hello, response)
-                val sharedSecret = agree(ephemeralPrivateKey, response.ephemeralPublicKeySpki)
+                val sharedSecret = agree(ephemeralPrivateKey, response.ephemeralPublicKeySpki, x25519Provider)
                 try {
                     return deriveSession(sharedSecret, transcript, Role.INITIATOR,
                         response.identityPublicKeySpki.copyOf())
@@ -404,12 +404,13 @@ object AuthenticatedSessionProtocol {
     fun begin(
         identity: IdentitySigner,
         timePolicy: HandshakeTimePolicy,
-        secureRandom: SecureRandom = random
+        secureRandom: SecureRandom = random,
+        x25519Provider: Provider? = null
     ): PendingInitiatorHandshake {
         val createdAtEpochMs = timePolicy.captureNow()
         val identityPublicKey = identity.publicKeySpki.copyOf()
         validatePublicKey(identityPublicKey, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
-        val ephemeral = generateX25519(secureRandom)
+        val ephemeral = generateX25519(secureRandom, x25519Provider)
         val sessionId = ByteArray(SESSION_ID_BYTES).also(secureRandom::nextBytes)
         val nonce = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)
         try {
@@ -422,7 +423,8 @@ object AuthenticatedSessionProtocol {
                 Hello(VERSION, createdAtEpochMs, sessionId, nonce, ephemeral.public.encoded, identityPublicKey, signature.copyOf()),
                 ephemeral.private,
                 identityPublicKey,
-                timePolicy
+                timePolicy,
+                x25519Provider
             )
         } catch (error: Throwable) {
             destroy(ephemeral.private)
@@ -437,7 +439,8 @@ object AuthenticatedSessionProtocol {
         authorTrustPolicy: AuthorTrustPolicy,
         replayGuard: ReplayGuard,
         timePolicy: HandshakeTimePolicy,
-        secureRandom: SecureRandom = random
+        secureRandom: SecureRandom = random,
+        x25519Provider: Provider? = null
     ): ResponderResult {
         val hello = copyHello(candidateHello)
         validateHello(hello)
@@ -500,7 +503,7 @@ object AuthenticatedSessionProtocol {
                 signature.copyOf()
             )
 
-            val sharedSecret = agree(ephemeral.private, hello.ephemeralPublicKeySpki)
+            val sharedSecret = agree(ephemeral.private, hello.ephemeralPublicKeySpki, x25519Provider)
             try {
                 val transcript = transcriptHash(hello, response)
                 val session = deriveSession(
@@ -518,12 +521,12 @@ object AuthenticatedSessionProtocol {
         }
     }
 
-    private fun validateHello(hello: Hello) {
+    private fun validateHello(hello: Hello, x25519Provider: Provider? = null) {
         require(hello.version == VERSION) { "Unsupported peer-session version" }
         require(hello.createdAtEpochMs >= 0) { "Invalid handshake creation time" }
         require(hello.sessionId.size == SESSION_ID_BYTES) { "Invalid peer-session ID" }
         validateNonce(hello.initiatorNonce, "initiator nonce")
-        validatePublicKey(hello.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519")
+        validatePublicKey(hello.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519", x25519Provider)
         validatePublicKey(hello.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
         require(hello.signature.size == ED25519_SIGNATURE_BYTES) { "Invalid peer-session signature length" }
     }
@@ -532,21 +535,42 @@ object AuthenticatedSessionProtocol {
         require(value.size == NONCE_BYTES) { "Invalid $label" }
     }
 
-    private fun validatePublicKey(value: ByteArray, expectedBytes: Int, algorithm: String) {
+    private fun validatePublicKey(
+        value: ByteArray,
+        expectedBytes: Int,
+        algorithm: String,
+        provider: Provider? = null
+    ) {
         require(value.size == expectedBytes) { "Invalid $algorithm public-key length" }
-        KeyFactory.getInstance(algorithm).generatePublic(X509EncodedKeySpec(value))
+        val factory = if (provider == null) KeyFactory.getInstance(algorithm)
+            else KeyFactory.getInstance(algorithm, provider)
+        factory.generatePublic(X509EncodedKeySpec(value))
     }
 
-    private fun generateX25519(secureRandom: SecureRandom): KeyPair =
-        KeyPairGenerator.getInstance("X25519").run {
-            initialize(java.security.spec.NamedParameterSpec("X25519"), secureRandom)
-            generateKeyPair()
+    private fun generateX25519(secureRandom: SecureRandom, provider: Provider?): KeyPair {
+        val generator = if (provider == null) KeyPairGenerator.getInstance("X25519")
+            else KeyPairGenerator.getInstance("X25519", provider)
+        if (provider == null) {
+            generator.initialize(java.security.spec.NamedParameterSpec("X25519"), secureRandom)
+        } else {
+            // Bouncy Castle's X25519 generator is parameterized by its algorithm name;
+            // avoiding NamedParameterSpec keeps this path compatible with API 23.
+            generator.initialize(255, secureRandom)
         }
+        return generator.generateKeyPair()
+    }
 
-    private fun agree(privateKey: PrivateKey, remotePublicKeySpki: ByteArray): ByteArray {
-        val remote = KeyFactory.getInstance("X25519")
-            .generatePublic(X509EncodedKeySpec(remotePublicKeySpki))
-        return KeyAgreement.getInstance("X25519").run {
+    private fun agree(
+        privateKey: PrivateKey,
+        remotePublicKeySpki: ByteArray,
+        provider: Provider?
+    ): ByteArray {
+        val factory = if (provider == null) KeyFactory.getInstance("X25519")
+            else KeyFactory.getInstance("X25519", provider)
+        val remote = factory.generatePublic(X509EncodedKeySpec(remotePublicKeySpki))
+        val agreement = if (provider == null) KeyAgreement.getInstance("X25519")
+            else KeyAgreement.getInstance("X25519", provider)
+        return agreement.run {
             init(privateKey)
             doPhase(remote, true)
             generateSecret()
@@ -727,6 +751,17 @@ object AuthenticatedSessionProtocol {
             }
             output.toByteArray()
         }
+
+    private fun encodeHex(bytes: ByteArray): String {
+        val alphabet = "0123456789abcdef"
+        val output = CharArray(bytes.size * 2)
+        bytes.forEachIndexed { index, byte ->
+            val value = byte.toInt() and 0xff
+            output[index * 2] = alphabet[value ushr 4]
+            output[index * 2 + 1] = alphabet[value and 0x0f]
+        }
+        return String(output)
+    }
 
     private fun longBytes(value: Long): ByteArray = ByteBuffer.allocate(Long.SIZE_BYTES).putLong(value).array()
 
