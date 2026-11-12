@@ -117,7 +117,8 @@ object AuthenticatedSessionProtocol {
     }
 
     /** Fixed-width, versioned binary framing for the two handshake messages. */
-    fun encodeHelloFrame(hello: Hello): ByteArray {
+    fun encodeHelloFrame(candidate: Hello): ByteArray {
+        val hello = copyHello(candidate)
         validateHello(hello)
         return ByteArrayOutputStream().use { output ->
             DataOutputStream(output).use { data ->
@@ -150,7 +151,8 @@ object AuthenticatedSessionProtocol {
         return hello
     }
 
-    fun encodeResponseFrame(response: Response): ByteArray {
+    fun encodeResponseFrame(candidate: Response): ByteArray {
+        val response = copyResponse(candidate)
         validateResponseShape(response)
         return ByteArrayOutputStream().use { output ->
             DataOutputStream(output).use { data ->
@@ -235,20 +237,44 @@ object AuthenticatedSessionProtocol {
         val session: SecurePeerSession
     )
 
+    private fun copyHello(value: Hello): Hello = value.copy(
+        sessionId = value.sessionId.copyOf(),
+        initiatorNonce = value.initiatorNonce.copyOf(),
+        ephemeralPublicKeySpki = value.ephemeralPublicKeySpki.copyOf(),
+        identityPublicKeySpki = value.identityPublicKeySpki.copyOf(),
+        signature = value.signature.copyOf()
+    )
+
+    private fun copyResponse(value: Response): Response = value.copy(
+        sessionId = value.sessionId.copyOf(),
+        initiatorNonce = value.initiatorNonce.copyOf(),
+        responderNonce = value.responderNonce.copyOf(),
+        ephemeralPublicKeySpki = value.ephemeralPublicKeySpki.copyOf(),
+        identityPublicKeySpki = value.identityPublicKeySpki.copyOf(),
+        signature = value.signature.copyOf()
+    )
+
+
     class PendingInitiatorHandshake internal constructor(
-        val hello: Hello,
+        hello: Hello,
         private val ephemeralPrivateKey: PrivateKey,
-        private val localIdentityPublicKey: ByteArray
+        localIdentityPublicKey: ByteArray
     ) : AutoCloseable {
+        private val helloSnapshot = copyHello(hello)
+        private val localIdentityKey = localIdentityPublicKey.copyOf()
+        val hello: Hello
+            get() = copyHello(helloSnapshot)
         private var completed = false
 
         @Synchronized
         fun complete(
-            response: Response,
+            candidateResponse: Response,
             verifier: IdentityVerifier,
             authorTrustPolicy: AuthorTrustPolicy
         ): SecurePeerSession {
             check(!completed) { "Handshake has already been completed or closed" }
+            val hello = helloSnapshot
+            val response = copyResponse(candidateResponse)
             try {
                 require(response.version == VERSION) { "Unsupported peer-session version" }
                 require(response.sessionId.contentEquals(hello.sessionId)) {
@@ -266,7 +292,7 @@ object AuthenticatedSessionProtocol {
                 }
                 validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519")
                 validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
-                require(!response.identityPublicKeySpki.contentEquals(localIdentityPublicKey)) {
+                require(!response.identityPublicKeySpki.contentEquals(localIdentityKey)) {
                     "Peer-session identity keys must be distinct"
                 }
 
@@ -337,13 +363,14 @@ object AuthenticatedSessionProtocol {
     }
 
     fun accept(
-        hello: Hello,
+        candidateHello: Hello,
         identity: IdentitySigner,
         verifier: IdentityVerifier,
         authorTrustPolicy: AuthorTrustPolicy,
         replayGuard: ReplayGuard,
         secureRandom: SecureRandom = random
     ): ResponderResult {
+        val hello = copyHello(candidateHello)
         validateHello(hello)
         val initiatorUnsigned = helloUnsignedBytes(
             hello.sessionId,
@@ -664,10 +691,11 @@ object AuthenticatedSessionProtocol {
         @Synchronized
         fun decrypt(packet: ByteArray): ByteArray {
             checkOpen()
-            require(packet.size in (PACKET_HEADER_BYTES + GCM_TAG_BYTES)..MAX_PACKET_BYTES) {
+            val frame = packet.copyOf()
+            require(frame.size in (PACKET_HEADER_BYTES + GCM_TAG_BYTES)..MAX_PACKET_BYTES) {
                 "Peer-session packet has an invalid length"
             }
-            val buffer = ByteBuffer.wrap(packet)
+            val buffer = ByteBuffer.wrap(frame)
             val version = buffer.get().toInt() and 0xff
             require(version == VERSION) { "Unsupported peer-session packet version" }
             val sequence = buffer.long
