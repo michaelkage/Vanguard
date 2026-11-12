@@ -6,6 +6,7 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Base64
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
@@ -72,6 +73,48 @@ object AuthenticatedSessionProtocol {
 
 
     enum class Role { INITIATOR, RESPONDER }
+
+    /**
+     * Process-local replay protection. It deliberately fails closed when full.
+     * The default clock is monotonic and entries are not persisted across process death.
+     */
+    class BoundedInMemoryReplayGuard(
+        private val capacity: Int = 4096,
+        private val ttlMillis: Long = 120_000,
+        elapsedClock: (() -> Long)? = null
+    ) : ReplayGuard {
+        private val originNanos = System.nanoTime()
+        private val nowElapsedMillis: () -> Long = elapsedClock
+            ?: { (System.nanoTime() - originNanos) / 1_000_000L }
+        private val entries = LinkedHashMap<String, Long>()
+
+        init {
+            require(capacity in 1..100_000) { "Replay-guard capacity must be between 1 and 100000" }
+            require(ttlMillis in 1..86_400_000) { "Replay-guard TTL must be between 1 ms and 24 hours" }
+        }
+
+        @Synchronized
+        override fun claim(sessionId: ByteArray, initiatorNonce: ByteArray): Boolean {
+            require(sessionId.size == SESSION_ID_BYTES) { "Invalid replay-guard session ID" }
+            validateNonce(initiatorNonce, "initiator nonce")
+            val now = nowElapsedMillis()
+            require(now >= 0) { "Replay-guard clock must be monotonic and non-negative" }
+
+            val iterator = entries.entries.iterator()
+            while (iterator.hasNext()) {
+                if (iterator.next().value <= now) iterator.remove()
+            }
+
+            val key = Base64.getUrlEncoder().withoutPadding().encodeToString(sessionId) + "." +
+                Base64.getUrlEncoder().withoutPadding().encodeToString(initiatorNonce)
+            if (entries.containsKey(key)) return false
+            if (entries.size >= capacity) return false
+
+            val expiresAt = if (Long.MAX_VALUE - now < ttlMillis) Long.MAX_VALUE else now + ttlMillis
+            entries[key] = expiresAt
+            return true
+        }
+    }
 
     /** Fixed-width, versioned binary framing for the two handshake messages. */
     fun encodeHelloFrame(hello: Hello): ByteArray {
