@@ -1,7 +1,6 @@
 package dev.vanguard.android.storage
 
 import android.os.Looper
-import androidx.room.withTransaction
 import dev.vanguard.protocol.ReplayClaimStore
 import java.util.concurrent.Callable
 
