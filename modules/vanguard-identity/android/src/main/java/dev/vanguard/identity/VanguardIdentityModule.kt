@@ -116,17 +116,25 @@ private class IdentityKeyStore(context: Context) {
   }
 
   /** Signs an exact protocol byte sequence without exposing private-key material. */
-  fun signProtocolBytes(message: ByteArray): ByteArray {
-    require(message.size <= MAX_SIGNING_MESSAGE_BYTES) {
-      "Signing input exceeds the protocol signing limit"
+  fun signProtocolBytes(message: ByteArray, expectedPublicKeySpki: ByteArray): ByteArray =
+    synchronized(LOCK) {
+      require(message.size <= MAX_SIGNING_MESSAGE_BYTES) {
+        "Signing input exceeds the protocol signing limit"
+      }
+      require(expectedPublicKeySpki.size == X509_ED25519_PUBLIC_KEY_BYTES) {
+        "Invalid expected Ed25519 public key"
+      }
+      val record = readRecord()
+      check(record.publicKey.contentEquals(expectedPublicKeySpki)) {
+        "Vanguard identity changed during the peer-session operation"
+      }
+      val snapshot = message.copyOf()
+      try {
+        signBytes(snapshot)
+      } finally {
+        snapshot.fill(0)
+      }
     }
-    val snapshot = message.copyOf()
-    return try {
-      signBytes(snapshot)
-    } finally {
-      snapshot.fill(0)
-    }
-  }
 
   fun sign(message: String): String {
     val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
@@ -442,12 +450,13 @@ private data class IdentityRecord(
 internal class AndroidProtocolIdentitySigner(context: Context) :
   AuthenticatedSessionProtocol.IdentitySigner {
   private val keyStore = IdentityKeyStore(context.applicationContext)
+  private val identityPublicKey = keyStore.protocolPublicKeySpki()
 
   override val publicKeySpki: ByteArray
-    get() = keyStore.protocolPublicKeySpki()
+    get() = identityPublicKey.copyOf()
 
   override fun sign(message: ByteArray): ByteArray =
-    keyStore.signProtocolBytes(message)
+    keyStore.signProtocolBytes(message, identityPublicKey)
 }
 
 /** Ed25519 verifier backed by the same explicit Bouncy Castle provider as identity storage. */
