@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f4f1ea">
+<title>Vanguard — Protocol field manual</title>
+<meta name="description" content="Vanguard protocol v1 and Android store-carry-forward foundation: interactive event verification and relay simulation, architecture, constraints, and release data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F4F1EA;--ink:#141413;--stone:#57554E;--line:#c9c4b9;--soft:#e9e5dc;--red:#D9381E;--green:#286447;--mono:"IBM Plex Mono",ui-monospace,monospace;--serif:"Newsreader",Georgia,serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:12px;line-height:1.55}a{color:inherit;text-decoration-thickness:1px;text-underline-offset:3px}button,input,textarea,select{font:inherit;color:inherit}button{border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:9px 12px;cursor:pointer;transition:background .15s,color .15s}button:hover{background:var(--red);border-color:var(--red)}button:disabled{opacity:.38;cursor:not-allowed}button.secondary{background:transparent;color:var(--ink)}button.secondary:hover{background:var(--soft);border-color:var(--ink)}button.danger{background:transparent;color:var(--red);border-color:var(--red)}button.danger:hover{background:var(--red);color:white}.eyebrow,.kicker,.micro{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--stone)}.wrap{max-width:1280px;margin:auto;padding:0 28px}.mast{height:43px;border-bottom:1px solid var(--ink);display:flex;align-items:center;justify-content:space-between}.brand{font-weight:600;letter-spacing:.12em}.mast nav{display:flex;gap:18px}.mast nav a{text-decoration:none;color:var(--stone)}.mast nav a:hover{color:var(--red)}header{padding:27px 0 18px;border-bottom:1px solid var(--ink)}.headrow{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end}.title{font:500 clamp(40px,7vw,76px)/.92 var(--serif);letter-spacing:-.045em;margin:7px 0 10px}.dek{font:400 18px/1.25 var(--serif);max-width:640px;margin:0;color:var(--stone)}.buildbox{border:1px solid var(--ink);padding:10px 13px;min-width:190px}.buildbox strong{display:block;font-size:13px}.buildbox span{display:block;color:var(--stone);font-size:10px}.statusline{display:flex;gap:12px;align-items:center;margin-top:18px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap}.dot{display:inline-block;width:7px;height:7px;background:var(--green);border-radius:50%;margin-right:6px}.dot.warn{background:var(--red)}.statusline .spacer{flex:1}.hero-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,.8fr);border-bottom:1px solid var(--ink)}.sim{padding:20px 22px 20px 0;border-right:1px solid var(--ink)}.side{padding:20px 0 20px 22px}.section-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px}.section-head h2,.section-title{font:500 25px/1 var(--serif);letter-spacing:-.02em;margin:0}.section-head .index{color:var(--red)}.field{display:grid;gap:5px;margin:10px 0}.field label{font-size:10px;color:var(--stone);text-transform:uppercase;letter-spacing:.06em}.field input,.field textarea,.field select{width:100%;background:transparent;border:1px solid var(--line);padding:9px 10px;outline:none}.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--red)}textarea{resize:vertical;min-height:75px}.controls{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.pipeline{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);margin:14px 0 10px}.step{padding:8px 9px;border-right:1px solid var(--line);min-width:0}.step:last-child{border:0}.step b{display:block;font-size:10px;font-weight:500}.step small{color:var(--stone);font-size:9px}.step.active{background:var(--ink);color:var(--paper)}.step.active small{color:#c7c2b8}.step.done{border-top:2px solid var(--green)}.console{border:1px solid var(--ink);background:#1c1c1a;color:#e9e5dc;padding:11px;min-height:136px;max-height:220px;overflow:auto}.console .line{display:flex;gap:9px;padding:2px 0;font-size:10px;overflow-wrap:anywhere}.console time{color:#9e9a8f;white-space:nowrap}.console .ok{color:#91c5a4}.console .bad{color:#ff907d}.console .dim{color:#b4afa4}.stats{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);margin-top:12px}.stat{padding:9px;border-right:1px solid var(--line)}.stat:last-child{border:0}.stat strong{font-size:20px;display:block;font-weight:500}.stat span{font-size:9px;color:var(--stone);text-transform:uppercase}.side-block{padding:0 0 14px;margin-bottom:14px;border-bottom:1px solid var(--line)}.side-block:last-child{border:0;margin:0}.side-block h3{font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}.kv{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dotted var(--line)}.kv span:first-child{color:var(--stone)}.kv span:last-child{text-align:right}.event-preview{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);border:1px solid var(--line);padding:9px;font-size:10px;max-height:210px;overflow:auto}.wire{color:var(--red)}main section{padding:27px 0;border-bottom:1px solid var(--ink)}.section-top{display:grid;grid-template-columns:180px 1fr;gap:25px;margin-bottom:17px}.section-top .num{color:var(--red)}.section-top h2{font:500 31px/1 var(--serif);margin:4px 0}.section-top p{max-width:650px;color:var(--stone);margin:6px 0 0}.cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}.panel{border:1px solid var(--line);padding:13px}.panel h3{font-size:11px;text-transform:uppercase;margin:0 0 9px}.tree{font-size:11px;line-height:1.9;white-space:pre-wrap}.tree .folder{color:var(--red)}.tree .note{color:var(--stone)}.table{width:100%;border-collapse:collapse;font-size:11px}.table th{text-align:left;color:var(--stone);font-weight:400;font-size:9px;text-transform:uppercase;letter-spacing:.07em}.table td,.table th{padding:8px 7px;border-bottom:1px solid var(--line);vertical-align:top}.table td:first-child{white-space:nowrap}.callout{border-left:3px solid var(--red);padding:8px 12px;background:var(--soft);margin:12px 0}.code{background:#1c1c1a;color:#eee9df;padding:12px;overflow:auto;font-size:10px;line-height:1.65}.tag{display:inline-block;border:1px solid var(--line);padding:2px 5px;font-size:9px;text-transform:uppercase;color:var(--stone)}.release{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border:1px solid var(--line)}.release>div{padding:12px;border-right:1px solid var(--line);min-width:0}.release>div:last-child{border:0}.release strong{display:block;font-size:14px;font-weight:500;overflow-wrap:anywhere}.release small{color:var(--stone);font-size:9px;text-transform:uppercase}.assets{margin-top:10px;display:flex;gap:7px;flex-wrap:wrap}.asset{border:1px solid var(--line);padding:5px 8px;text-decoration:none;font-size:10px}.asset:hover{border-color:var(--red);color:var(--red)}footer{padding:17px 0 28px;color:var(--stone);display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}.muted{color:var(--stone)}.red{color:var(--red)}.good{color:var(--green)}.small{font-size:10px}.anchor{scroll-margin-top:12px}
+body.is-embedded .mast,body.is-embedded footer,body.is-embedded .outer-only{display:none}body.is-embedded .wrap{max-width:none;padding:0 16px}body.is-embedded header{padding-top:14px}
+@media(max-width:800px){.wrap{padding:0 16px}.hero-grid{grid-template-columns:1fr}.sim{border-right:0;border-bottom:1px solid var(--ink);padding:17px 0}.side{padding:17px 0}.section-top{grid-template-columns:1fr;gap:4px}.cols{grid-template-columns:1fr}.release{grid-template-columns:1fr}.release>div{border-right:0;border-bottom:1px solid var(--line)}.release>div:last-child{border-bottom:0}.headrow{grid-template-columns:1fr}.buildbox{justify-self:start}.mast nav{gap:9px}.mast nav a{font-size:9px}}
+@media(max-width:460px){.pipeline{grid-template-columns:repeat(2,1fr)}.step:nth-child(2){border-right:0}.step:nth-child(-n+2){border-bottom:1px solid var(--line)}.stats{grid-template-columns:1fr 1fr 1fr}.statusline{font-size:9px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="mast"><div class="brand">V / VANGUARD</div><nav><a href="#protocol">Protocol</a><a href="#architecture">Architecture</a><a href="#limits">Constraints</a><a href="#release">Repository</a></nav></div>
+<header>
+<div class="headrow"><div><div class="eyebrow">Protocol field manual / v1</div><h1 class="title">Vanguard<span class="red">.</span></h1><p class="dek">Local-first, peer-to-peer mesh identity and communication for campus environments with unreliable or unavailable internet.</p></div>
+<div class="buildbox"><span>REPOSITORY STATE</span><strong id="repo-state">Loading live metadata…</strong><span id="repo-branch">main · source inspected</span></div></div>
+<div class="statusline"><span><i class="dot"></i>Protocol core implemented</span><span><i class="dot"></i>Android storage foundation</span><span><i class="dot warn"></i>Transport not implemented</span><span class="spacer"></span><span id="head-sha" class="muted">HEAD —</span></div>
+</header>
+
+<div class="hero-grid">
+<div class="sim anchor" id="demo">
+<div class="section-head"><h2>Event bench</h2><span class="index">01 / LIVE SIMULATION</span></div>
+<p class="muted small">Create a v1 envelope with browser Ed25519 keys, derive its SHA-256 event ID, verify it, then exercise duplicate-safe storage and a durable-queue model. Cryptographic operations run locally in this tab.</p>
+<div class="field"><label for="event-type">Event type / protocol regex</label><input id="event-type" value="message.created" maxlength="64" spellcheck="false"></div>
+<div class="field"><label for="payload">Payload JSON object / supplied canonical text</label><textarea id="payload" spellcheck="false">{"body":"Meet at the library entrance","channel":"campus-demo"}</textarea></div>
+<div class="controls"><button id="create">01 · Create + sign</button><button id="verify" class="secondary" disabled>02 · Verify envelope</button><button id="tamper" class="danger" disabled>Tamper payload</button></div>
+<div class="pipeline" aria-label="Event pipeline"><div class="step active" id="p1"><b>01 / ENCODE</b><small>fixed field order</small></div><div class="step" id="p2"><b>02 / SIGN</b><small>Ed25519 + SHA-256</small></div><div class="step" id="p3"><b>03 / ACCEPT</b><small>verify → dedupe</small></div><div class="step" id="p4"><b>04 / QUEUE</b><small>store-carry-forward</small></div></div>
+<div class="section-head"><span class="kicker">Execution trace</span><span id="sim-status" class="tag">Idle</span></div>
+<div class="console" id="console" role="log" aria-live="polite"><div class="line"><time>BOOT</time><span class="dim">Awaiting event input. No network transport is simulated.</span></div></div>
+<div class="controls"><button id="store" class="secondary" disabled>Accept into verified store</button><button id="duplicate" class="secondary" disabled>Try duplicate insert</button><button id="relay" class="secondary" disabled>Relay next batch</button><button id="defer" class="secondary" disabled>Defer / retry</button></div>
+<div class="stats"><div class="stat"><strong id="stored-count">0</strong><span>Stored events</span></div><div class="stat"><strong id="queue-count">0</strong><span>Queue pending</span></div><div class="stat"><strong id="attempt-count">0</strong><span>Retry attempts</span></div></div>
+</div>
+<aside class="side">
+<div class="side-block"><h3>Envelope inspector <span class="wire">/ data model</span></h3><div class="kv"><span>version</span><span id="v-version">—</span></div><div class="kv"><span>event ID</span><span id="v-id">—</span></div><div class="kv"><span>author key</span><span id="v-key">—</span></div><div class="kv"><span>signature</span><span id="v-signature">—</span></div><div class="kv"><span>expiry</span><span id="v-expiry">null</span></div></div>
+<div class="side-block"><h3>Current envelope</h3><pre class="event-preview" id="event-json">No event created.</pre></div>
+<div class="side-block"><h3>Relay controls</h3><div class="kv"><span>Link state</span><span id="link-state" class="good">ONLINE</span></div><div class="controls"><button id="toggle-link" class="secondary">Take link offline</button><button id="ack" class="secondary" disabled>Acknowledge</button></div><p class="small muted">Offline means the queue stays pending. Online relay is a local state transition only; no radio, socket, BLE, Wi-Fi Direct, or remote peer exists in this demo.</p></div>
+<div class="side-block"><h3>Important fidelity note</h3><p class="small">The page uses Web Crypto Ed25519 and SHA-256 to exercise the same envelope construction and verification order. It does not execute the Kotlin library, Room, or Android code. The in-memory queue mirrors the core abstraction; retry metadata follows the Android Room entity shape.</p></div>
+</aside>
+</div>
+
+<main>
+<section id="protocol" class="anchor">
+<div class="section-top"><div class="num">02 / CONTRACT</div><div><h2>Protocol v1 envelope</h2><p>The author signs one immutable unsigned representation. Both the event ID and signature cover those same bytes; ID and signature themselves are excluded. Relay metadata must stay outside the signed envelope.</p></div></div>
+<div class="cols">
+<div class="panel"><h3>Field contract</h3><table class="table"><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>version</td><td>Integer; current protocol version is <code>1</code>.</td></tr>
+<tr><td>id</td><td>Base64url without padding; SHA-256 of canonical unsigned UTF-8 bytes.</td></tr>
+<tr><td>type</td><td>Lowercase identifier matching <code>[a-z][a-z0-9_.-]{0,63}</code>.</td></tr>
+<tr><td>authorPublicKey</td><td>Base64url-no-padding X.509 SubjectPublicKeyInfo Ed25519 public key.</td></tr>
+<tr><td>createdAtEpochMs</td><td>Author-declared Unix timestamp in milliseconds.</td></tr>
+<tr><td>expiresAtEpochMs</td><td>Optional expiry timestamp, later than creation.</td></tr>
+<tr><td>payloadCanonicalJson</td><td>Object-shaped JSON text supplied by the event-type layer.</td></tr>
+<tr><td>signature</td><td>Base64url-no-padding Ed25519 signature over unsigned bytes.</td></tr>
+</tbody></table></div>
+<div class="panel"><h3>Verification order / EventProtocol.verify</h3><ol>
+<li>Reject unsupported protocol version.</li><li>Rebuild the unsigned event with fixed field order.</li><li>Recompute SHA-256 and compare event ID.</li><li>Check expiry only when a clock value is supplied.</li><li>Decode signature; verify Ed25519 against author public key.</li><li>Return true only after every check passes.</li>
+</ol><div class="callout small"><b>Important:</b> a valid signature proves control of a private key. It does not prove a student's real-world identity, campus membership, or current authorization.</div></div>
+</div>
+<div class="panel" style="margin-top:14px"><h3>Canonical unsigned representation</h3><pre class="code">{
+  "version": 1,
+  "type": "message.created",
+  "authorPublicKey": "&lt;base64url-SPKI&gt;",
+  "createdAtEpochMs": 1800000000000,
+  "expiresAtEpochMs": null,
+  "payload": {"body":"hello"}
+}</pre><p class="small muted">The Kotlin codec uses fixed field order and JSON string escaping. It is not a claim of full RFC 8785 / JCS compliance. Payload JSON is expected to be canonicalized upstream; the current core checks only that trimmed input begins with <code>{</code> and ends with <code>}</code>—it does not parse or canonicalize arbitrary JSON.</p></div>
+</section>
+
+<section id="architecture" class="anchor">
+<div class="section-top"><div class="num">03 / SYSTEM</div><div><h2>Architecture & data flow</h2><p>Two Gradle modules, one dependency direction. The protocol core has no Android dependency; Android runtime adapts its storage interfaces to Room-backed persistence.</p></div></div>
+<div class="cols">
+<div class="panel"><h3>Repository map / selected source</h3><div class="tree"><span class="folder">Vanguard/</span>
+├── settings.gradle.kts <span class="note">module inclusion</span>
+├── build.gradle.kts <span class="note">plugin versions</span>
+├── <span class="folder">protocol-core/</span>
+│   ├── build.gradle.kts
+│   └── src/
+│       ├── main/kotlin/dev/vanguard/protocol/
+│       │   ├── EventEnvelope.kt
+│       │   ├── EventProtocol.kt
+│       │   ├── CanonicalEventCodec.kt
+│       │   ├── Signing.kt
+│       │   ├── Hashing.kt
+│       │   ├── EventStore.kt
+│       │   └── ProtocolException.kt
+│       └── test/kotlin/.../EventProtocolTest.kt
+├── <span class="folder">android-runtime/</span>
+│   ├── build.gradle.kts
+│   ├── schemas/ <span class="note">Room schema export target</span>
+│   └── src/main/kotlin/dev/vanguard/android/storage/
+│       ├── VanguardDatabase.kt
+│       ├── VanguardDao.kt
+│       ├── StoredEvent.kt
+│       ├── RelayQueueEntry.kt
+│       └── RoomEventRepository.kt
+├── <span class="folder">protocol/</span>
+│   ├── PROTOCOL.md
+│   └── ROADMAP.md
+└── <span class="folder">.github/workflows/</span>
+    └── protocol-core.yml <span class="note">existing CI</span></div></div>
+<div class="panel"><h3>Acceptance and relay path</h3><div class="code">Incoming EventEnvelope
+        │
+        ▼
+EventProtocol.verify(event, now?)
+        │ valid only
+        ▼
+RoomEventRepository.storeVerifiedAndQueue()
+        │ Room transaction
+        ├── INSERT events (IGNORE duplicate id)
+        └── INSERT relay_queue (IGNORE)
+                │
+                ▼
+nextRelayBatch(now, limit 1..256)
+        │
+        ├── acknowledgeRelay(id) → DELETE queue row
+        └── deferRelay(id, nextAt, error)
+              attempts += 1
+              error.take(512)</div>
+<p class="small muted">The Android repository intentionally does not verify signatures itself. Callers must verify first. Its transaction inserts the full envelope and queue item atomically; the event's signed fields are copied without rewriting.</p></div>
+</div>
+<div class="panel" style="margin-top:14px"><h3>Build and test matrix</h3><table class="table"><thead><tr><th>Target</th><th>Actual requirement / command</th><th>State</th></tr></thead><tbody>
+<tr><td>Protocol JVM</td><td>JDK 17 toolchain; Gradle 8.10.2<br><code>gradle :protocol-core:test</code></td><td><span class="tag">Implemented</span></td></tr>
+<tr><td>Android library</td><td>Android SDK Platform 35<br><code>gradle :android-runtime:assembleDebug</code></td><td><span class="tag">Implemented</span></td></tr>
+<tr><td>Android API policy</td><td>minSdk 23 / compileSdk 35; Java + Kotlin target 17</td><td><span class="tag">Library only</span></td></tr>
+<tr><td>Protocol tests</td><td>JUnit 5.11.3; six focused tests for signature, tamper, expiry, store and queue behavior</td><td><span class="tag">Source present</span></td></tr>
+</tbody></table><p class="small muted">The README documents <code>gradle test</code> and <code>gradle :android-runtime:assembleDebug</code>. Existing CI is <code>.github/workflows/protocol-core.yml</code>; this page does not claim a passing CI run without checking a run result.</p></div>
+</section>
+
+<section id="limits" class="anchor">
+<div class="section-top"><div class="num">04 / BOUNDARIES</div><div><h2>Implemented ≠ production-ready</h2><p>The unfinished pieces are architectural dependencies, not cosmetic TODOs. The prototype must not be presented as a deployable campus messenger or identity system.</p></div></div>
+<div class="cols">
+<div class="panel"><h3>Present in source</h3><ul>
+<li>Protocol v1 immutable author-signed envelope.</li><li>Fixed-field unsigned encoding, SHA-256 event IDs, Ed25519 reference signer/verifier.</li><li>Version, field-shape, event-ID, signature and optional expiry checks.</li><li>Transport-independent event-store and relay-queue interfaces with in-memory adapters.</li><li>Room-backed Android event table and durable relay queue.</li><li>Atomic verified-event + queue insertion, deduplication, bounded batches, ack and retry deferral.</li>
+</ul></div>
+<div class="panel"><h3>Not implemented / constraints</h3><ul>
+<li>Android Keystore-backed signing or production Android key provider.</li><li>Android application/UI shell; this repository builds a library, not an installable app.</li><li>BLE / Wi-Fi Direct discovery, transport, authenticated peer sessions or encryption.</li><li>Enrollment, campus membership, key rotation, revocation and trust freshness.</li><li>Supabase synchronization, server-side validation, PlugScore integration.</li><li>Strict payload schemas, parser hardening, payload size limits, cross-language test vectors.</li><li>Application-level Room database encryption; instrumentation and migration tests.</li>
+</ul></div>
+</div>
+<div class="callout"><b>Security warning.</b> JVM Ed25519 keys are a development/test reference, not persistent production key custody. Room data has no application-level encryption. Treat payloads as sensitive; do not store real private messages or identity records. Do not use this prototype for payments, emergency services, or high-value authorization.</div>
+<div class="small muted">The v1 wire contract also calls out stale offline revocation snapshots, provisional offline marketplace vouches, relay quotas / hop limits / TTL, replay and rate controls, and server idempotency as production requirements.</div>
+</section>
+
+<section id="release" class="anchor">
+<div class="section-top"><div class="num">05 / LIVE WIRE</div><div><h2>Repository & release telemetry</h2><p>Resolved from the current GitHub Pages host at runtime. The latest release endpoint may return 404 when no GitHub Release has been published; that is reported as “none”, not guessed from a tag.</p></div></div>
+<div class="release">
+<div><small>Repository</small><strong id="repo-name">michaelkage/Vanguard</strong><span id="repo-description" class="small muted">Fetching GitHub metadata…</span></div>
+<div><small>Latest release</small><strong id="release-tag">Checking…</strong><span id="release-date" class="small muted">/releases/latest</span></div>
+<div><small>Latest commit</small><strong id="commit-date">Checking…</strong><span id="commit-sha" class="small muted">/commits?per_page=1</span></div>
+</div>
+<div class="assets" id="release-assets"><span class="muted small">Release assets will appear here when a release exists.</span></div>
+<div class="controls"><a href="https://github.com/michaelkage/Vanguard" id="repo-link"><button class="secondary">Open repository ↗</button></a><a href="https://github.com/michaelkage/Vanguard/releases" id="releases-link"><button class="secondary">All releases ↗</button></a><button id="refresh-api" class="secondary">Refresh metadata</button></div>
+<p id="api-note" class="small muted">GitHub public API · unauthenticated request · rate limits apply.</p>
+</section>
+</main>
+<footer><span>VANGUARD / TECHNICAL FIELD MANUAL</span><span>Protocol v1 · Android storage foundation · not a production app</span><span><a href="https://github.com/michaelkage/Vanguard">SOURCE ↗</a></span></footer>
+</div>
+<script>
+(() => {
+"use strict";
+if (window.self !== window.top) document.body.classList.add("is-embedded");
+const $ = id => document.getElementById(id);
+const encoder = new TextEncoder();
+let keyPair = null, currentEvent = null, verified = false, stored = new Map(), queue = new Map(), online = true, lastRelayed = null;
+let attempts = 0;
+const now = () => Date.now();
+const b64url = bytes => {let s="";new Uint8Array(bytes).forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");};
+const unb64url = value => Uint8Array.from(atob(value.replace(/-/g,"+").replace(/_/g,"/")+"===".slice((value.length+3)%4)),c=>c.charCodeAt(0));
+const quote = value => JSON.stringify(value);
+function unsignedJson(e){return '{"version":'+e.version+',"type":'+quote(e.type)+',"authorPublicKey":'+quote(e.authorPublicKey)+',"createdAtEpochMs":'+e.createdAtEpochMs+',"expiresAtEpochMs":'+(e.expiresAtEpochMs===null?"null":e.expiresAtEpochMs)+',"payload":'+e.payloadCanonicalJson+'}';}
+function log(message,kind="dim"){const row=document.createElement("div");row.className="line";const time=document.createElement("time");time.textContent=new Date().toLocaleTimeString();const span=document.createElement("span");span.className=kind;span.textContent=message;row.append(time,span);$("console").prepend(row);}
+function status(value){$("sim-status").textContent=value;}
+function pipeline(n){for(let i=1;i<=4;i++){$("p"+i).classList.toggle("active",i===n);$("p"+i).classList.toggle("done",i<n);}}
+function refresh(){ $("stored-count").textContent=stored.size; $("queue-count").textContent=queue.size; $("attempt-count").textContent=attempts;
+$("store").disabled=!verified||!currentEvent;$("duplicate").disabled=!stored.size;$("relay").disabled=!queue.size;$("defer").disabled=!queue.size;$("ack").disabled=!lastRelayed;
+$("verify").disabled=!currentEvent;$("tamper").disabled=!currentEvent;
+if(currentEvent){$("v-version").textContent=currentEvent.version;$("v-id").textContent=currentEvent.id.slice(0,13)+"…";$("v-key").textContent=currentEvent.authorPublicKey.slice(0,13)+"…";$("v-signature").textContent=currentEvent.signature.slice(0,13)+"…";$("v-expiry").textContent=currentEvent.expiresAtEpochMs??"null";$("event-json").textContent=JSON.stringify(currentEvent,null,2);}
+else {$("event-json").textContent="No event created.";}
+$("link-state").textContent=online?"ONLINE":"OFFLINE";$("link-state").className=online?"good":"red";$("toggle-link").textContent=online?"Take link offline":"Bring link online";
+}
+function validateInput(){const type=$("event-type").value; if(!/^[a-z][a-z0-9_.-]{0,63}$/.test(type))throw Error("Invalid event type. Expected [a-z][a-z0-9_.-]{0,63}.");const raw=$("payload").value.trim();let parsed;try{parsed=JSON.parse(raw);}catch{throw Error("Payload is not valid JSON.");}if(!parsed||Array.isArray(parsed)||typeof parsed!=="object")throw Error("Payload must be a JSON object.");if(!raw.startsWith("{")||!raw.endsWith("}"))throw Error("Payload must be an object.");return {type,raw};}
+async function createEvent(){try{if(!window.crypto?.subtle)throw Error("Web Crypto unavailable. Use HTTPS or localhost in a modern browser.");const {type,raw}=validateInput();status("Signing…");pipeline(1);
+if(!keyPair){keyPair=await crypto.subtle.generateKey({name:"Ed25519"},true,["sign","verify"]);log("Generated ephemeral Ed25519 key pair (memory only).","ok");}
+const pub=new Uint8Array(await crypto.subtle.exportKey("spki",keyPair.publicKey));const authorPublicKey=b64url(pub);
+const e={version:1,type,authorPublicKey,createdAtEpochMs:now(),expiresAtEpochMs:null,payloadCanonicalJson:raw};
+const bytes=encoder.encode(unsignedJson(e));const digest=await crypto.subtle.digest("SHA-256",bytes);e.id=b64url(digest);pipeline(2);
+e.signature=b64url(await crypto.subtle.sign({name:"Ed25519"},keyPair.privateKey,bytes));
+currentEvent=e;verified=false;lastRelayed=null;pipeline(2);status("Signed · awaiting verification");
+log("Encoded fixed-field unsigned envelope · "+bytes.length+" UTF-8 bytes.");log("SHA-256 event ID derived: "+e.id,"ok");log("Ed25519 signature created over identical unsigned bytes.","ok");
+refresh();
+}catch(err){status("Input / crypto error");log(err.message,"bad");}}
+async function verifyEvent(){if(!currentEvent)return;try{status("Verifying…");const e=currentEvent;if(e.version!==1)throw Error("Unsupported protocol version");const bytes=encoder.encode(unsignedJson(e));const id=b64url(await crypto.subtle.digest("SHA-256",bytes));if(id!==e.id)throw Error("InvalidEventId: event ID does not match event contents.");const sig=unb64url(e.signature);const ok=await crypto.subtle.verify({name:"Ed25519"},keyPair.publicKey,sig,bytes);if(!ok)throw Error("InvalidSignature: Ed25519 verification failed.");if(e.expiresAtEpochMs!==null&&now()>=e.expiresAtEpochMs)throw Error("ExpiredEvent");verified=true;pipeline(3);status("Verified");log("Protocol checks passed: version → ID → expiry → Ed25519.","ok");refresh();}catch(err){verified=false;pipeline(1);status("Rejected");log(err.message,"bad");refresh();}}
+function storeCurrent(){if(!currentEvent||!verified)return;const id=currentEvent.id;if(stored.has(id)){log("Duplicate event ID ignored; no second queue item inserted.","bad");return;}stored.set(id,structuredClone(currentEvent));queue.set(id,{eventId:id,enqueuedAtEpochMs:now(),attempts:0,nextAttemptAtEpochMs:now(),lastError:null});pipeline(4);status("Stored + queued");log("Room model: transaction committed event row + relay_queue row (simulated).","ok");refresh();}
+function duplicateInsert(){if(!stored.size)return;const e=stored.values().next().value;if(stored.has(e.id)){log("INSERT OR IGNORE → duplicate primary key; returned false. Queue remains unique.","bad");}refresh();}
+function relay(){if(!online){log("No link: relay batch remains queued; no transport is implemented.","bad");return;}const eligible=[...queue.values()].filter(x=>x.nextAttemptAtEpochMs<=now()).sort((a,b)=>a.enqueuedAtEpochMs-b.enqueuedAtEpochMs).slice(0,32);if(!eligible.length){log("No eligible events in nextRelayBatch(now, 32).","dim");return;}lastRelayed=eligible[0].eventId;log("nextRelayBatch(now, 32) → "+eligible.length+" eligible event(s).","ok");log("Transport boundary reached. No peer/socket/BLE transfer exists; event remains queued until acknowledgement.","dim");status("Batch ready · awaiting ack");refresh();}
+function defer(){if(!queue.size)return;const item=[...queue.values()].sort((a,b)=>a.enqueuedAtEpochMs-b.enqueuedAtEpochMs)[0];item.attempts++;item.nextAttemptAtEpochMs=now()+30000;item.lastError="simulated link unavailable";attempts++;log("deferRelay("+item.eventId.slice(0,10)+"…, nextAttemptAt=+30s, error.take(512)); attempts="+item.attempts+".","bad");lastRelayed=null;refresh();}
+function acknowledge(){if(!lastRelayed)return;queue.delete(lastRelayed);log("acknowledgeRelay(eventId) → relay_queue row deleted. Author envelope unchanged.","ok");lastRelayed=null;status("Relay acknowledged");refresh();}
+$("create").addEventListener("click",createEvent);$("verify").addEventListener("click",verifyEvent);$("store").addEventListener("click",storeCurrent);$("duplicate").addEventListener("click",duplicateInsert);$("relay").addEventListener("click",relay);$("defer").addEventListener("click",defer);$("ack").addEventListener("click",acknowledge);
+$("tamper").addEventListener("click",()=>{if(!currentEvent)return;try{const p=JSON.parse(currentEvent.payloadCanonicalJson);p.demoTamper=true;currentEvent.payloadCanonicalJson=JSON.stringify(p);verified=false;pipeline(1);status("Payload modified");log("Payload mutated after signing. Verify should reject the stale event ID before signature check.","bad");refresh();}catch(e){log(e.message,"bad");}});
+$("toggle-link").addEventListener("click",()=>{online=!online;log(online?"Link flag set ONLINE. Queue may now produce a batch.":"Link flag set OFFLINE. Queue retained for later.","dim");refresh();});
+function prettyDate(s){if(!s)return"—";return new Date(s).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"});}
+async function github(){const host=location.hostname.split(".");let owner="michaelkage",repo="Vanguard";if(host.length>=3&&host[1]==="github"&&host[2]==="io"){owner=host[0];repo=location.pathname.split("/").filter(Boolean)[0]||"Vanguard";}else if(host.length>=3&&host[0]==="github"&&host[1]==="com"){owner=host[1];repo=host[2]||"Vanguard";}
+const base="https://api.github.com/repos/"+encodeURIComponent(owner)+"/"+encodeURIComponent(repo);$("repo-name").textContent=owner+"/"+repo;$("repo-link").href="https://github.com/"+owner+"/"+repo;$("releases-link").href="https://github.com/"+owner+"/"+repo+"/releases";$("repo-branch").textContent="Resolving "+owner+"/"+repo;
+const headers={"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
+const requests=await Promise.allSettled([fetch(base,{headers}),fetch(base+"/releases/latest",{headers}),fetch(base+"/commits?per_page=1",{headers})]);
+if(requests[0].status!=="fulfilled"||!requests[0].value.ok){$("repo-state").textContent="Metadata unavailable";$("api-note").textContent="Repository API request failed or was rate-limited. Open the repository directly to inspect.";return;}
+const r=await requests[0].value.json();$("repo-state").textContent=r.private?"Private repository":"Public · "+r.visibility;$("repo-branch").textContent=(r.default_branch||"main")+" · "+Number(r.stargazers_count||0).toLocaleString()+" stars";$("repo-description").textContent=r.description||"No repository description published.";
+if(requests[1].status==="fulfilled"&&requests[1].value.ok){const rel=await requests[1].value.json();$("release-tag").textContent=rel.tag_name||rel.name||"Untitled release";$("release-date").textContent="Published "+prettyDate(rel.published_at);const assets=rel.assets||[];$("release-assets").replaceChildren();if(!assets.length){$("release-assets").textContent="No binary assets attached to the latest release.";}else assets.forEach(a=>{const link=document.createElement("a");link.className="asset";link.href=a.browser_download_url;link.textContent=a.name+" · "+(a.download_count||0)+" downloads";link.rel="noopener";$("release-assets").append(link);});}
+else{$("release-tag").textContent="No published release";$("release-date").textContent="GitHub /releases/latest returned "+(requests[1].status==="fulfilled"?requests[1].value.status:"network error");$("release-assets").textContent="No latest-release assets to list.";}
+if(requests[2].status==="fulfilled"&&requests[2].value.ok){const commits=await requests[2].value.json();const c=commits[0];if(c){$("commit-date").textContent=prettyDate(c.commit?.committer?.date||c.commit?.author?.date);$("commit-sha").textContent=(c.sha||"").slice(0,12)+" · "+(c.commit?.message||"").split("\n")[0];$("head-sha").textContent="HEAD "+(c.sha||"").slice(0,7);}}
+$("api-note").textContent="Live GitHub API · repository, latest release, latest commit. Unauthenticated rate limits may apply.";
+}
+$("refresh-api").addEventListener("click",()=>github().catch(e=>{$("api-note").textContent="Metadata fetch failed: "+e.message;}));
+github().catch(e=>{$("repo-state").textContent="Offline";$("api-note").textContent="GitHub metadata unavailable: "+e.message;});
+refresh();
+})();
+</script>
+</body>
+</html>
