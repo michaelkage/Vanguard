@@ -466,7 +466,6 @@ object AuthenticatedSessionProtocol {
         require(replayGuard.claim(hello.sessionId.copyOf(), hello.initiatorNonce.copyOf())) {
             "Peer-session hello was replayed"
         }
-        }
 
         val responderIdentity = identity.publicKeySpki.copyOf()
         validatePublicKey(responderIdentity, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
