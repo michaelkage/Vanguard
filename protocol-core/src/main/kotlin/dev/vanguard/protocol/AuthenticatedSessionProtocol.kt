@@ -31,7 +31,6 @@ import javax.crypto.spec.SecretKeySpec
 object AuthenticatedSessionProtocol {
     const val VERSION = 1
     const val MAX_PACKET_BYTES = 24 * 1024
-    const val MAX_PLAINTEXT_BYTES = MAX_PACKET_BYTES - PACKET_HEADER_BYTES - GCM_TAG_BYTES
 
     private const val SESSION_ID_BYTES = 16
     private const val NONCE_BYTES = 32
@@ -40,6 +39,7 @@ object AuthenticatedSessionProtocol {
     private const val ED25519_SIGNATURE_BYTES = 64
     private const val PACKET_HEADER_BYTES = 1 + Long.SIZE_BYTES
     private const val GCM_TAG_BYTES = 16
+    const val MAX_PLAINTEXT_BYTES = MAX_PACKET_BYTES - PACKET_HEADER_BYTES - GCM_TAG_BYTES
     private const val TRAFFIC_KEY_BYTES = 32
     private const val NONCE_PREFIX_BYTES = 4
     private const val HKDF_OUTPUT_BYTES = 2 * (TRAFFIC_KEY_BYTES + NONCE_PREFIX_BYTES)
