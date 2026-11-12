@@ -116,6 +116,12 @@ object AuthenticatedSessionProtocol {
                     "Peer-session response does not bind the initiator nonce"
                 }
                 validateNonce(response.responderNonce, "responder nonce")
+                require(!response.responderNonce.contentEquals(hello.initiatorNonce)) {
+                    "Peer-session nonces must be distinct"
+                }
+                require(response.signature.size == ED25519_SIGNATURE_BYTES) {
+                    "Invalid peer-session response signature length"
+                }
                 validatePublicKey(response.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519")
                 validatePublicKey(response.identityPublicKeySpki, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
                 require(!response.identityPublicKeySpki.contentEquals(localIdentityPublicKey)) {
@@ -171,14 +177,21 @@ object AuthenticatedSessionProtocol {
         val ephemeral = generateX25519(secureRandom)
         val sessionId = ByteArray(SESSION_ID_BYTES).also(secureRandom::nextBytes)
         val nonce = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)
-        val unsigned = helloUnsignedBytes(sessionId, nonce, ephemeral.public.encoded, identityPublicKey)
-        val signature = identity.sign(unsigned)
-        require(signature.size == ED25519_SIGNATURE_BYTES) { "Identity signer returned an invalid Ed25519 signature" }
-        return PendingInitiatorHandshake(
-            Hello(VERSION, sessionId, nonce, ephemeral.public.encoded, identityPublicKey, signature.copyOf()),
-            ephemeral.private,
-            identityPublicKey
-        )
+        try {
+            val unsigned = helloUnsignedBytes(sessionId, nonce, ephemeral.public.encoded, identityPublicKey)
+            val signature = identity.sign(unsigned)
+            require(signature.size == ED25519_SIGNATURE_BYTES) {
+                "Identity signer returned an invalid Ed25519 signature"
+            }
+            return PendingInitiatorHandshake(
+                Hello(VERSION, sessionId, nonce, ephemeral.public.encoded, identityPublicKey, signature.copyOf()),
+                ephemeral.private,
+                identityPublicKey
+            )
+        } catch (error: Throwable) {
+            destroy(ephemeral.private)
+            throw error
+        }
     }
 
     fun accept(
@@ -215,41 +228,47 @@ object AuthenticatedSessionProtocol {
         }
 
         val ephemeral = generateX25519(secureRandom)
-        val responderNonce = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)
-        val unsignedResponse = responseUnsignedBytes(
-            hello,
-            hello.sessionId,
-            hello.initiatorNonce,
-            responderNonce,
-            ephemeral.public.encoded,
-            responderIdentity
-        )
-        val signature = identity.sign(unsignedResponse)
-        require(signature.size == ED25519_SIGNATURE_BYTES) {
-            "Identity signer returned an invalid Ed25519 signature"
-        }
-        val response = Response(
-            VERSION,
-            hello.sessionId.copyOf(),
-            hello.initiatorNonce.copyOf(),
-            responderNonce,
-            ephemeral.public.encoded,
-            responderIdentity,
-            signature.copyOf()
-        )
-
-        val sharedSecret = agree(ephemeral.private, hello.ephemeralPublicKeySpki)
         try {
-            val transcript = transcriptHash(hello, response)
-            val session = deriveSession(
-                sharedSecret,
-                transcript,
-                Role.RESPONDER,
-                hello.identityPublicKeySpki.copyOf()
+            val responderNonce = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)
+            require(!responderNonce.contentEquals(hello.initiatorNonce)) {
+                "Peer-session nonces must be distinct"
+            }
+            val unsignedResponse = responseUnsignedBytes(
+                hello,
+                hello.sessionId,
+                hello.initiatorNonce,
+                responderNonce,
+                ephemeral.public.encoded,
+                responderIdentity
             )
-            return ResponderResult(response, session)
+            val signature = identity.sign(unsignedResponse)
+            require(signature.size == ED25519_SIGNATURE_BYTES) {
+                "Identity signer returned an invalid Ed25519 signature"
+            }
+            val response = Response(
+                VERSION,
+                hello.sessionId.copyOf(),
+                hello.initiatorNonce.copyOf(),
+                responderNonce,
+                ephemeral.public.encoded,
+                responderIdentity,
+                signature.copyOf()
+            )
+
+            val sharedSecret = agree(ephemeral.private, hello.ephemeralPublicKeySpki)
+            try {
+                val transcript = transcriptHash(hello, response)
+                val session = deriveSession(
+                    sharedSecret,
+                    transcript,
+                    Role.RESPONDER,
+                    hello.identityPublicKeySpki.copyOf()
+                )
+                return ResponderResult(response, session)
+            } finally {
+                sharedSecret.fill(0)
+            }
         } finally {
-            sharedSecret.fill(0)
             destroy(ephemeral.private)
         }
     }
@@ -417,7 +436,9 @@ object AuthenticatedSessionProtocol {
                 expand.update(previous)
                 expand.update(info)
                 expand.update(counter.toByte())
-                previous = expand.doFinal()
+                val next = expand.doFinal()
+                previous.fill(0)
+                previous = next
                 result.write(previous)
                 counter += 1
             }
@@ -529,7 +550,7 @@ object AuthenticatedSessionProtocol {
             receiveKey.fill(0)
             receiveNoncePrefix.fill(0)
             transcriptHash.fill(0)
-            remoteIdentityPublicKeySpki.fill(0)
+            remoteIdentityKey.fill(0)
         }
 
         private fun checkOpen() {
