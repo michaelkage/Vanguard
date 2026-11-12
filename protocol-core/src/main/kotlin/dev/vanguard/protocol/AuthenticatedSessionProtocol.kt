@@ -29,11 +29,16 @@ import javax.crypto.spec.SecretKeySpec
  * Callers must provide a fail-closed author trust policy and a replay guard.
  */
 object AuthenticatedSessionProtocol {
-    const val VERSION = 1
+    const val VERSION = 2
     const val MAX_PACKET_BYTES = 24 * 1024
 
     private const val SESSION_ID_BYTES = 16
     private const val NONCE_BYTES = 32
+    private const val HELLO_FRAME_BYTES = 217
+    private const val RESPONSE_FRAME_BYTES = 241
+    const val MAX_HANDSHAKE_AGE_MILLIS = 120_000L
+    const val MAX_FUTURE_SKEW_MILLIS = 30_000L
+    const val MIN_REPLAY_RETENTION_MILLIS = MAX_HANDSHAKE_AGE_MILLIS + MAX_FUTURE_SKEW_MILLIS + 1_000L
     private const val X25519_PUBLIC_KEY_BYTES = 44
     private const val ED25519_PUBLIC_KEY_BYTES = 44
     private const val ED25519_SIGNATURE_BYTES = 64
@@ -43,11 +48,11 @@ object AuthenticatedSessionProtocol {
     private const val TRAFFIC_KEY_BYTES = 32
     private const val NONCE_PREFIX_BYTES = 4
     private const val HKDF_OUTPUT_BYTES = 2 * (TRAFFIC_KEY_BYTES + NONCE_PREFIX_BYTES)
-    private const val HELLO_DOMAIN = "VANGUARD_PEER_HELLO_V1"
-    private const val RESPONSE_DOMAIN = "VANGUARD_PEER_RESPONSE_V1"
-    private const val KEY_DERIVATION_DOMAIN = "VANGUARD_PEER_TRAFFIC_KEYS_V1"
-    private const val PACKET_DOMAIN = "VANGUARD_PEER_PACKET_V1"
-    private val HANDSHAKE_MAGIC = byteArrayOf(0x56, 0x47, 0x48, 0x31)
+    private const val HELLO_DOMAIN = "VANGUARD_PEER_HELLO_V2"
+    private const val RESPONSE_DOMAIN = "VANGUARD_PEER_RESPONSE_V2"
+    private const val KEY_DERIVATION_DOMAIN = "VANGUARD_PEER_TRAFFIC_KEYS_V2"
+    private const val PACKET_DOMAIN = "VANGUARD_PEER_PACKET_V2"
+    private val HANDSHAKE_MAGIC = byteArrayOf(0x56, 0x47, 0x48, 0x32)
 
     private val random = SecureRandom()
 
@@ -72,6 +77,39 @@ object AuthenticatedSessionProtocol {
     }
 
 
+    /**
+     * Caller-owned epoch clock for signed handshake freshness. No system-clock default
+     * is provided: production callers must supply their rollback-aware time source.
+     */
+    class HandshakeTimePolicy(
+        private val epochMillis: () -> Long,
+        val maximumAgeMillis: Long = MAX_HANDSHAKE_AGE_MILLIS,
+        val maximumFutureSkewMillis: Long = MAX_FUTURE_SKEW_MILLIS
+    ) {
+        private var lastObservedEpochMillis: Long? = null
+        init {
+            require(maximumAgeMillis in 1..600_000L) { "Invalid maximum handshake age" }
+            require(maximumFutureSkewMillis in 0..120_000L) { "Invalid maximum future skew" }
+        }
+        @Synchronized fun captureNow(): Long {
+            val now = epochMillis()
+            require(now >= 0) { "Handshake clock must be non-negative" }
+            val previous = lastObservedEpochMillis
+            require(previous == null || now >= previous) { "Handshake clock moved backwards" }
+            lastObservedEpochMillis = now
+            return now
+        }
+        @Synchronized fun validateCreatedAt(createdAtEpochMs: Long) {
+            require(createdAtEpochMs >= 0) { "Handshake creation time must be non-negative" }
+            val now = captureNow()
+            if (createdAtEpochMs > now) {
+                require(createdAtEpochMs - now <= maximumFutureSkewMillis) { "Peer-session hello is too far in the future" }
+            } else {
+                require(now - createdAtEpochMs <= maximumAgeMillis) { "Peer-session hello has expired" }
+            }
+        }
+    }
+
     enum class Role { INITIATOR, RESPONDER }
 
     /**
@@ -80,7 +118,7 @@ object AuthenticatedSessionProtocol {
      */
     class BoundedInMemoryReplayGuard(
         private val capacity: Int = 4096,
-        private val ttlMillis: Long = 120_000,
+        private val ttlMillis: Long = MIN_REPLAY_RETENTION_MILLIS,
         elapsedClock: (() -> Long)? = null
     ) : ReplayGuard {
         private val originNanos = System.nanoTime()
@@ -131,6 +169,7 @@ object AuthenticatedSessionProtocol {
                 data.write(HANDSHAKE_MAGIC)
                 data.writeByte(1)
                 data.writeInt(hello.version)
+                data.writeLong(hello.createdAtEpochMs)
                 data.write(hello.sessionId)
                 data.write(hello.initiatorNonce)
                 data.write(hello.ephemeralPublicKeySpki)
@@ -144,8 +183,10 @@ object AuthenticatedSessionProtocol {
     fun decodeHelloFrame(frame: ByteArray): Hello {
         val input = openHandshakeFrame(frame, 1)
         val version = input.readInt()
+        val createdAtEpochMs = input.readLong()
         val hello = Hello(
             version,
+            createdAtEpochMs,
             readExact(input, SESSION_ID_BYTES),
             readExact(input, NONCE_BYTES),
             readExact(input, X25519_PUBLIC_KEY_BYTES),
@@ -193,7 +234,8 @@ object AuthenticatedSessionProtocol {
     }
 
     private fun openHandshakeFrame(frame: ByteArray, expectedType: Int): DataInputStream {
-        require(frame.size in 9..MAX_PACKET_BYTES) { "Handshake frame has an invalid length" }
+        val expectedBytes = if (expectedType == 1) HELLO_FRAME_BYTES else RESPONSE_FRAME_BYTES
+        require(frame.size == expectedBytes) { "Handshake frame has an invalid length" }
         val input = DataInputStream(ByteArrayInputStream(frame))
         val magic = readExact(input, HANDSHAKE_MAGIC.size)
         require(magic.contentEquals(HANDSHAKE_MAGIC)) { "Unrecognized Vanguard handshake frame" }
@@ -221,6 +263,7 @@ object AuthenticatedSessionProtocol {
 
     data class Hello(
         val version: Int,
+        val createdAtEpochMs: Long,
         val sessionId: ByteArray,
         val initiatorNonce: ByteArray,
         val ephemeralPublicKeySpki: ByteArray,
@@ -264,7 +307,8 @@ object AuthenticatedSessionProtocol {
     class PendingInitiatorHandshake internal constructor(
         hello: Hello,
         private val ephemeralPrivateKey: PrivateKey,
-        localIdentityPublicKey: ByteArray
+        localIdentityPublicKey: ByteArray,
+        private val timePolicy: HandshakeTimePolicy
     ) : AutoCloseable {
         private val helloSnapshot = copyHello(hello)
         private val localIdentityKey = localIdentityPublicKey.copyOf()
@@ -282,6 +326,7 @@ object AuthenticatedSessionProtocol {
             val hello = helloSnapshot
             val response = copyResponse(candidateResponse)
             try {
+                timePolicy.validateCreatedAt(hello.createdAtEpochMs)
                 require(response.version == VERSION) { "Unsupported peer-session version" }
                 require(response.sessionId.contentEquals(hello.sessionId)) {
                     "Peer-session response has the wrong session ID"
@@ -319,6 +364,7 @@ object AuthenticatedSessionProtocol {
                     "Peer-session responder is not trusted"
                 }
 
+                timePolicy.validateCreatedAt(hello.createdAtEpochMs)
                 val transcript = transcriptHash(hello, response)
                 val sharedSecret = agree(ephemeralPrivateKey, response.ephemeralPublicKeySpki)
                 try {
@@ -344,23 +390,26 @@ object AuthenticatedSessionProtocol {
 
     fun begin(
         identity: IdentitySigner,
+        timePolicy: HandshakeTimePolicy,
         secureRandom: SecureRandom = random
     ): PendingInitiatorHandshake {
+        val createdAtEpochMs = timePolicy.captureNow()
         val identityPublicKey = identity.publicKeySpki.copyOf()
         validatePublicKey(identityPublicKey, ED25519_PUBLIC_KEY_BYTES, "Ed25519")
         val ephemeral = generateX25519(secureRandom)
         val sessionId = ByteArray(SESSION_ID_BYTES).also(secureRandom::nextBytes)
         val nonce = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)
         try {
-            val unsigned = helloUnsignedBytes(sessionId, nonce, ephemeral.public.encoded, identityPublicKey)
+            val unsigned = helloUnsignedBytes(createdAtEpochMs, sessionId, nonce, ephemeral.public.encoded, identityPublicKey)
             val signature = identity.sign(unsigned)
             require(signature.size == ED25519_SIGNATURE_BYTES) {
                 "Identity signer returned an invalid Ed25519 signature"
             }
             return PendingInitiatorHandshake(
-                Hello(VERSION, sessionId, nonce, ephemeral.public.encoded, identityPublicKey, signature.copyOf()),
+                Hello(VERSION, createdAtEpochMs, sessionId, nonce, ephemeral.public.encoded, identityPublicKey, signature.copyOf()),
                 ephemeral.private,
-                identityPublicKey
+                identityPublicKey,
+                timePolicy
             )
         } catch (error: Throwable) {
             destroy(ephemeral.private)
@@ -374,11 +423,14 @@ object AuthenticatedSessionProtocol {
         verifier: IdentityVerifier,
         authorTrustPolicy: AuthorTrustPolicy,
         replayGuard: ReplayGuard,
+        timePolicy: HandshakeTimePolicy,
         secureRandom: SecureRandom = random
     ): ResponderResult {
         val hello = copyHello(candidateHello)
         validateHello(hello)
+        timePolicy.validateCreatedAt(hello.createdAtEpochMs)
         val initiatorUnsigned = helloUnsignedBytes(
+            hello.createdAtEpochMs,
             hello.sessionId,
             hello.initiatorNonce,
             hello.ephemeralPublicKeySpki,
@@ -392,6 +444,7 @@ object AuthenticatedSessionProtocol {
         require(authorTrustPolicy.isTrusted(hello.identityPublicKeySpki.copyOf())) {
             "Peer-session initiator is not trusted"
         }
+        timePolicy.validateCreatedAt(hello.createdAtEpochMs)
         require(replayGuard.claim(hello.sessionId.copyOf(), hello.initiatorNonce.copyOf())) {
             "Peer-session hello was replayed"
         }
@@ -450,6 +503,7 @@ object AuthenticatedSessionProtocol {
 
     private fun validateHello(hello: Hello) {
         require(hello.version == VERSION) { "Unsupported peer-session version" }
+        require(hello.createdAtEpochMs >= 0) { "Invalid handshake creation time" }
         require(hello.sessionId.size == SESSION_ID_BYTES) { "Invalid peer-session ID" }
         validateNonce(hello.initiatorNonce, "initiator nonce")
         validatePublicKey(hello.ephemeralPublicKeySpki, X25519_PUBLIC_KEY_BYTES, "X25519")
@@ -488,6 +542,7 @@ object AuthenticatedSessionProtocol {
     }
 
     private fun helloUnsignedBytes(
+        createdAtEpochMs: Long,
         sessionId: ByteArray,
         nonce: ByteArray,
         ephemeralPublicKey: ByteArray,
@@ -495,6 +550,7 @@ object AuthenticatedSessionProtocol {
     ): ByteArray = encodeFields(
         HELLO_DOMAIN.toByteArray(Charsets.US_ASCII),
         intBytes(VERSION),
+        longBytes(createdAtEpochMs),
         sessionId,
         nonce,
         ephemeralPublicKey,
@@ -521,6 +577,7 @@ object AuthenticatedSessionProtocol {
 
     private fun encodeHello(hello: Hello): ByteArray = encodeFields(
         helloUnsignedBytes(
+            hello.createdAtEpochMs,
             hello.sessionId,
             hello.initiatorNonce,
             hello.ephemeralPublicKeySpki,
@@ -653,6 +710,8 @@ object AuthenticatedSessionProtocol {
             }
             output.toByteArray()
         }
+
+    private fun longBytes(value: Long): ByteArray = ByteBuffer.allocate(Long.SIZE_BYTES).putLong(value).array()
 
     private fun intBytes(value: Int): ByteArray =
         ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN).putInt(value).array()

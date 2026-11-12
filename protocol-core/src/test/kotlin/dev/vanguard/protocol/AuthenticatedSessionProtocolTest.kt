@@ -48,19 +48,22 @@ class AuthenticatedSessionProtocolTest {
 
     private val trusted = AuthenticatedSessionProtocol.AuthorTrustPolicy { true }
 
+    private fun timePolicy(now: () -> Long = { 1_000_000L }) = AuthenticatedSessionProtocol.HandshakeTimePolicy(now)
+
     private fun establish(): Pair<
         AuthenticatedSessionProtocol.SecurePeerSession,
         AuthenticatedSessionProtocol.SecurePeerSession
     > {
         val initiator = TestIdentity()
         val responder = TestIdentity()
-        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
         val accepted = AuthenticatedSessionProtocol.accept(
             pending.hello,
             responder,
             verifier,
             trusted,
-            ReplayGuard()
+            ReplayGuard(),
+                timePolicy()
         )
         val initiatorSession = pending.complete(accepted.response, verifier, trusted)
         return initiatorSession to accepted.session
@@ -70,11 +73,12 @@ class AuthenticatedSessionProtocolTest {
     fun `handshake frames round trip with fixed width framing`() {
         val initiator = TestIdentity()
         val responder = TestIdentity()
-        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
         val helloFrame = AuthenticatedSessionProtocol.encodeHelloFrame(pending.hello)
         val decodedHello = AuthenticatedSessionProtocol.decodeHelloFrame(helloFrame)
 
         assertContentEquals(pending.hello.sessionId, decodedHello.sessionId)
+        assertEquals(pending.hello.createdAtEpochMs, decodedHello.createdAtEpochMs)
         assertContentEquals(pending.hello.initiatorNonce, decodedHello.initiatorNonce)
         assertContentEquals(pending.hello.ephemeralPublicKeySpki, decodedHello.ephemeralPublicKeySpki)
         assertContentEquals(pending.hello.identityPublicKeySpki, decodedHello.identityPublicKeySpki)
@@ -85,7 +89,8 @@ class AuthenticatedSessionProtocolTest {
             responder,
             verifier,
             trusted,
-            ReplayGuard()
+            ReplayGuard(),
+                timePolicy()
         )
         val responseFrame = AuthenticatedSessionProtocol.encodeResponseFrame(accepted.response)
         val decodedResponse = AuthenticatedSessionProtocol.decodeResponseFrame(responseFrame)
@@ -102,7 +107,7 @@ class AuthenticatedSessionProtocolTest {
 
     @Test
     fun `handshake codec rejects wrong frame type and trailing data`() {
-        val pending = AuthenticatedSessionProtocol.begin(TestIdentity())
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy())
         val valid = AuthenticatedSessionProtocol.encodeHelloFrame(pending.hello)
 
         assertFailsWith<IllegalArgumentException> {
@@ -246,7 +251,7 @@ class AuthenticatedSessionProtocolTest {
     fun `hello signature tampering is rejected before replay claim`() {
         val initiator = TestIdentity()
         val responder = TestIdentity()
-        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
         val tampered = pending.hello.copy(signature = pending.hello.signature.copyOf().also {
             it[0] = (it[0].toInt() xor 1).toByte()
         })
@@ -258,7 +263,8 @@ class AuthenticatedSessionProtocolTest {
                 responder,
                 verifier,
                 trusted,
-                replayGuard
+                replayGuard,
+                timePolicy()
             )
         }
         val accepted = AuthenticatedSessionProtocol.accept(
@@ -266,7 +272,8 @@ class AuthenticatedSessionProtocolTest {
             responder,
             verifier,
             trusted,
-            replayGuard
+            replayGuard,
+                timePolicy()
         )
         assertTrue(accepted.response.signature.isNotEmpty())
         accepted.session.close()
@@ -277,13 +284,14 @@ class AuthenticatedSessionProtocolTest {
     fun `tampered responder transcript signature is rejected`() {
         val initiator = TestIdentity()
         val responder = TestIdentity()
-        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
         val accepted = AuthenticatedSessionProtocol.accept(
             pending.hello,
             responder,
             verifier,
             trusted,
-            ReplayGuard()
+            ReplayGuard(),
+                timePolicy()
         )
         val tamperedResponse = accepted.response.copy(
             signature = accepted.response.signature.copyOf().also {
@@ -301,7 +309,7 @@ class AuthenticatedSessionProtocolTest {
     fun `untrusted initiator is rejected before replay state is consumed`() {
         val initiator = TestIdentity()
         val responder = TestIdentity()
-        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
         var replayClaims = 0
         val replayGuard = AuthenticatedSessionProtocol.ReplayGuard { _, _ ->
             replayClaims += 1
@@ -314,7 +322,8 @@ class AuthenticatedSessionProtocolTest {
                 responder,
                 verifier,
                 AuthenticatedSessionProtocol.AuthorTrustPolicy { false },
-                replayGuard
+                replayGuard,
+                timePolicy()
             )
         }
         assertEquals(0, replayClaims)
@@ -326,14 +335,15 @@ class AuthenticatedSessionProtocolTest {
         val initiator = TestIdentity()
         val responder = TestIdentity()
         val replayGuard = ReplayGuard()
-        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
 
         val accepted = AuthenticatedSessionProtocol.accept(
             pending.hello,
             responder,
             verifier,
             trusted,
-            replayGuard
+            replayGuard,
+                timePolicy()
         )
         assertFailsWith<IllegalArgumentException> {
             AuthenticatedSessionProtocol.accept(
@@ -341,7 +351,8 @@ class AuthenticatedSessionProtocolTest {
                 responder,
                 verifier,
                 trusted,
-                replayGuard
+                replayGuard,
+                timePolicy()
             )
         }
         accepted.session.close()
@@ -352,13 +363,14 @@ class AuthenticatedSessionProtocolTest {
     fun `untrusted responder identity cannot establish an initiator session`() {
         val initiator = TestIdentity()
         val responder = TestIdentity()
-        val pending = AuthenticatedSessionProtocol.begin(initiator)
+        val pending = AuthenticatedSessionProtocol.begin(initiator, timePolicy())
         val accepted = AuthenticatedSessionProtocol.accept(
             pending.hello,
             responder,
             verifier,
             trusted,
-            ReplayGuard()
+            ReplayGuard(),
+                timePolicy()
         )
 
         assertFailsWith<IllegalArgumentException> {
@@ -369,6 +381,77 @@ class AuthenticatedSessionProtocolTest {
             )
         }
         accepted.session.close()
+    }
+
+    @Test
+    fun `expired hello is rejected before replay state is consumed`() {
+        var now = 100_000L
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy { now })
+        var claims = 0
+        val guard = AuthenticatedSessionProtocol.ReplayGuard { _, _ -> claims += 1; true }
+        now += AuthenticatedSessionProtocol.MAX_HANDSHAKE_AGE_MILLIS + 1
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.accept(pending.hello, TestIdentity(), verifier, trusted, guard, timePolicy { now })
+        }
+        assertEquals(0, claims)
+        pending.close()
+    }
+
+    @Test
+    fun `future hello beyond configured skew is rejected`() {
+        var now = 100_000L
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy { now })
+        now -= AuthenticatedSessionProtocol.MAX_FUTURE_SKEW_MILLIS + 1
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.accept(pending.hello, TestIdentity(), verifier, trusted, ReplayGuard(), timePolicy { now })
+        }
+        pending.close()
+    }
+
+    @Test
+    fun `freshness boundaries are inclusive`() {
+        var now = 100_000L
+        val future = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy { now })
+        now -= AuthenticatedSessionProtocol.MAX_FUTURE_SKEW_MILLIS
+        val acceptedFuture = AuthenticatedSessionProtocol.accept(future.hello, TestIdentity(), verifier, trusted, ReplayGuard(), timePolicy { now })
+        acceptedFuture.session.close()
+        future.close()
+
+        now = 100_000L
+        val age = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy { now })
+        now += AuthenticatedSessionProtocol.MAX_HANDSHAKE_AGE_MILLIS
+        val acceptedAge = AuthenticatedSessionProtocol.accept(age.hello, TestIdentity(), verifier, trusted, ReplayGuard(), timePolicy { now })
+        acceptedAge.session.close()
+        age.close()
+    }
+
+    @Test
+    fun `initiator completion rechecks expiry`() {
+        var now = 50_000L
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy { now })
+        val accepted = AuthenticatedSessionProtocol.accept(pending.hello, TestIdentity(), verifier, trusted, ReplayGuard(), timePolicy { now })
+        now += AuthenticatedSessionProtocol.MAX_HANDSHAKE_AGE_MILLIS + 1
+        assertFailsWith<IllegalArgumentException> { pending.complete(accepted.response, verifier, trusted) }
+        accepted.session.close()
+    }
+
+    @Test
+    fun `handshake clock rollback fails closed`() {
+        var now = 10_000L
+        val policy = timePolicy { now }
+        policy.captureNow()
+        now -= 1
+        assertFailsWith<IllegalArgumentException> { policy.captureNow() }
+    }
+
+    @Test
+    fun `creation timestamp tampering invalidates initiator signature`() {
+        val pending = AuthenticatedSessionProtocol.begin(TestIdentity(), timePolicy())
+        val tampered = pending.hello.copy(createdAtEpochMs = pending.hello.createdAtEpochMs + 1)
+        assertFailsWith<IllegalArgumentException> {
+            AuthenticatedSessionProtocol.accept(tampered, TestIdentity(), verifier, trusted, ReplayGuard(), timePolicy())
+        }
+        pending.close()
     }
 
     @Test

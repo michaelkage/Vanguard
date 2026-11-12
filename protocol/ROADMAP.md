@@ -55,7 +55,10 @@
 - [x] Add Kotlin/JVM reference for Ed25519-authenticated ephemeral X25519 peer handshakes
 - [x] Derive directional AES-256-GCM traffic keys with HKDF-SHA-256 and transcript binding
 - [x] Add strict per-direction packet sequencing, replay rejection, and bounded 24 KiB framing
-- [x] Add fixed-width bounded binary codec for hello and response frames
+- [x] Add fixed-width bounded binary codec for v2 hello and response frames
+- [x] Sign initiator creation timestamp and enforce expiry/future-skew checks on both peers
+- [x] Require caller-injected rollback-detecting handshake time policy
+- [ ] Add durable replay protection and rollback-resistant time anchor across process restarts
 - [ ] Add native identity-provider adapter
 - [ ] Integrate authenticated session state with Android Nearby connection lifecycle
 - [x] Add bounded process-local replay guard with monotonic expiry and fail-closed capacity handling
