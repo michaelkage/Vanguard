@@ -15,7 +15,8 @@
 - [x] Add Room event persistence
 - [x] Add transactional event acceptance plus durable relay queue insertion
 - [x] Add bounded relay batches and retry deferral
-- [ ] Add Room schema migration and Android instrumentation tests
+- [x] Add Room schema migration for durable peer replay claims
+- [ ] Add Android instrumentation tests
 - [ ] Keep Room as a migration/reference implementation until Expo parity is proven
 
 ## Milestone 3 — Expo application foundation
@@ -59,11 +60,14 @@
 - [x] Sign initiator creation timestamp and enforce expiry/future-skew checks on both peers
 - [x] Require caller-injected rollback-detecting handshake time policy
 - [x] Enforce replay-guard retention against configured handshake freshness before accepting replay claims
-- [ ] Add durable replay protection and rollback-resistant time anchor across process restarts
+- [x] Add durable replay protection across ordinary process restarts with persisted clock high-water checks
+- [ ] Add SQLCipher-backed replay storage and protection against application-storage rollback
+- [ ] Add hardware-backed rollback-resistant time anchor across device reboot or storage restoration
 - [ ] Add native identity-provider adapter
 - [ ] Integrate authenticated session state with Android Nearby connection lifecycle
 - [x] Add bounded process-local replay guard with monotonic expiry and fail-closed capacity handling
-- [ ] Add durable replay guard and handshake lifecycle/timeout policy
+- [x] Add durable replay guard and transactional Android Room adapter
+- [ ] Add handshake lifecycle timeout, cancellation, reconnect, and rekey policy
 - [ ] Validate two-device handshake, rekey, disconnect, and message exchange
 - [ ] Integrate end-to-end encrypted direct messages with durable message storage
 
