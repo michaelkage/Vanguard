@@ -15,6 +15,9 @@ object VanguardStorage {
                 context.applicationContext,
                 VanguardDatabase::class.java,
                 DATABASE_NAME
-            ).build().also { instance = it }
+            )
+                .addMigrations(VanguardDatabase.MIGRATION_1_2)
+                .build()
+                .also { instance = it }
         }
 }
