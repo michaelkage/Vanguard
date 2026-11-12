@@ -37,15 +37,15 @@ internal class NativeAuthorRegistryVerifier(
 
   init {
     require(CAMPUS_ID.matches(campusId)) { "Invalid campus ID" }
-    require(maxSnapshotAgeMillis > 0) { "Snapshot maximum age must be positive" }
-    require(allowedClockSkewMillis >= 0) { "Clock skew must be non-negative" }
+    require(maxSnapshotAgeMillis in 1..MAX_SAFE_INTEGER) { "Snapshot maximum age must be a positive safe integer" }
+    require(allowedClockSkewMillis in 0..MAX_SAFE_INTEGER) { "Clock skew must be a non-negative safe integer" }
   }
 
   fun verify(snapshotJson: String, nowEpochMillis: Long): VerifiedSnapshot {
     require(pinnedServerPublicKey.matches(BASE64URL_59)) {
       "Native registry signing key is not configured"
     }
-    require(nowEpochMillis >= 0) { "Registry clock must be non-negative" }
+    require(nowEpochMillis in 0..MAX_SAFE_INTEGER) { "Registry clock must be a non-negative safe integer" }
     val bytes = snapshotJson.toByteArray(StandardCharsets.UTF_8)
     require(bytes.size <= MAX_SNAPSHOT_BYTES) { "Author registry snapshot exceeds 8 MiB" }
 
