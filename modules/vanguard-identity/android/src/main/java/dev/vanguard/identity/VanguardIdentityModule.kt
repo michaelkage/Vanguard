@@ -8,6 +8,7 @@ import android.util.Base64
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import dev.vanguard.protocol.AuthenticatedSessionProtocol
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -106,6 +107,25 @@ private class IdentityKeyStore(context: Context) {
       "publicKey" to encodeUrl(publicBytes),
       "keyProtection" to "android-keystore-wrapped"
     )
+  }
+
+  /** Returns a defensive copy of the persisted Ed25519 SPKI public key. */
+  fun protocolPublicKeySpki(): ByteArray = synchronized(LOCK) {
+    val identity = getOrCreateIdentity()
+    decodeUrl(requireNotNull(identity["publicKey"]))
+  }
+
+  /** Signs an exact protocol byte sequence without exposing private-key material. */
+  fun signProtocolBytes(message: ByteArray): ByteArray {
+    require(message.size <= MAX_SIGNING_MESSAGE_BYTES) {
+      "Signing input exceeds the protocol signing limit"
+    }
+    val snapshot = message.copyOf()
+    return try {
+      signBytes(snapshot)
+    } finally {
+      snapshot.fill(0)
+    }
   }
 
   fun sign(message: String): String {
@@ -345,6 +365,26 @@ private class IdentityKeyStore(context: Context) {
       }
     }
 
+    /** Native protocol adapter entry point; malformed keys/signatures fail closed. */
+    fun verifyProtocolBytes(
+      publicKeySpki: ByteArray,
+      message: ByteArray,
+      signature: ByteArray
+    ): Boolean {
+      if (
+        publicKeySpki.size != X509_ED25519_PUBLIC_KEY_BYTES ||
+        signature.size != 64 ||
+        message.size > MAX_SIGNING_MESSAGE_BYTES
+      ) return false
+
+      val messageSnapshot = message.copyOf()
+      return try {
+        verifyBytes(encodeUrl(publicKeySpki), messageSnapshot, encodeUrl(signature))
+      } finally {
+        messageSnapshot.fill(0)
+      }
+    }
+
     private fun verifyBytes(
       publicKeyEncoded: String,
       messageBytes: ByteArray,
@@ -393,3 +433,29 @@ private data class IdentityRecord(
   val iv: ByteArray,
   val ciphertext: ByteArray
 )
+
+
+/**
+ * Shared protocol adapter. It deliberately exposes only the public key and
+ * signing operation; the encrypted private key never leaves IdentityKeyStore.
+ */
+internal class AndroidProtocolIdentitySigner(context: Context) :
+  AuthenticatedSessionProtocol.IdentitySigner {
+  private val keyStore = IdentityKeyStore(context.applicationContext)
+
+  override val publicKeySpki: ByteArray
+    get() = keyStore.protocolPublicKeySpki()
+
+  override fun sign(message: ByteArray): ByteArray =
+    keyStore.signProtocolBytes(message)
+}
+
+/** Ed25519 verifier backed by the same explicit Bouncy Castle provider as identity storage. */
+internal object AndroidProtocolIdentityVerifier :
+  AuthenticatedSessionProtocol.IdentityVerifier {
+  override fun verify(
+    publicKeySpki: ByteArray,
+    message: ByteArray,
+    signature: ByteArray
+  ): Boolean = IdentityKeyStore.verifyProtocolBytes(publicKeySpki, message, signature)
+}
