@@ -210,9 +210,9 @@ object AuthenticatedSessionProtocol {
         return hello
     }
 
-    fun encodeResponseFrame(candidate: Response): ByteArray {
+    fun encodeResponseFrame(candidate: Response, cryptoProvider: Provider? = null): ByteArray {
         val response = copyResponse(candidate)
-        validateResponseShape(response)
+        validateResponseShape(response, cryptoProvider)
         return ByteArrayOutputStream().use { output ->
             DataOutputStream(output).use { data ->
                 data.write(HANDSHAKE_MAGIC)
@@ -551,7 +551,12 @@ object AuthenticatedSessionProtocol {
         val generator = if (provider == null) KeyPairGenerator.getInstance("X25519")
             else KeyPairGenerator.getInstance("X25519", provider)
         if (provider == null) {
-            generator.initialize(java.security.spec.NamedParameterSpec("X25519"), secureRandom)
+            // Resolve reflectively: NamedParameterSpec is absent on older Android releases.
+            val parameterType = Class.forName("java.security.spec.NamedParameterSpec")
+            val parameterSpec = parameterType
+                .getConstructor(String::class.java)
+                .newInstance("X25519") as java.security.spec.AlgorithmParameterSpec
+            generator.initialize(parameterSpec, secureRandom)
         } else {
             // Bouncy Castle's X25519 generator is parameterized by its algorithm name;
             // avoiding NamedParameterSpec keeps this path compatible with API 23.
