@@ -1,0 +1,12 @@
+.gradle/
+build/
+.idea/
+*.iml
+*.iws
+*.ipr
+*.iws
+local.properties
+.DS_Store
+.build/
+.ksp/
+schemas/
